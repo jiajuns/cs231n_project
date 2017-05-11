@@ -2,10 +2,17 @@
 # Get Started
 create google cloud instance  
 set up python environment for google cloud  
--- run [project path]/setup_googlecloud.sh  
+On terminal run:  
+[project path]/setup_googlecloud.sh
+
+# Start Virtual Environment
+source .env/bin/activate
+
 # load_data.py
 attribute:  
 download, preprocess  
+
+Usage:  
 from load_data import Download_Video  
 video_num = 10  
 frame_num = 10 # needed frames for each video  
@@ -18,7 +25,7 @@ d.download()
 d.preprocess()  
 
 # pretrained_model.py  
-attribute:  
+Attribute:  
 vgg_16_pretrained  
 load_features  
 split_train_test  
