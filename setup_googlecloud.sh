@@ -1,23 +1,25 @@
 #!/usr/bin/env bash
 
 # This is the set-up script for Google Cloud.
-# we directly use python 3.5
-wget http://repo.continuum.io/archive/Anaconda3-4.0.0-Linux-x86_64.sh
-bash Anaconda3-4.0.0-Linux-x86_64.sh
-source /.bashrc
-conda install pip
+sudo apt-get update
+sudo apt-get install libncurses5-dev
+sudo apt-get install python-dev
+sudo apt-get install python-pip
+sudo apt-get install libjpeg8-dev
+sudo ln -s /usr/lib/x86_64-linux-gnu/libjpeg.so /usr/lib
 sudo apt-get install libsm6 libxrender1 libfontconfig1
-pip install pytube
-conda install -c https://conda.binstar.org/menpo opencv3
-conda install pandas==0.19.2  # revert pandas version in order not to have error when importing keras
-pip install tensorflow
-pip install keras
-pip install moviepy
-
-
+pip install pillow
+sudo apt-get build-dep python-imaging
+sudo apt-get install libjpeg8 libjpeg62-dev libfreetype6 libfreetype6-dev
+sudo pip install virtualenv  
+virtualenv .env                  # Create a virtual environment
+source .env/bin/activate         # Activate the virtual environment
+pip install -r requirements.txt  # Install dependencies
+deactivate
 echo "**************************************************"
 echo "*****  End of Google Cloud Set-up Script  ********"
 echo "**************************************************"
 echo ""
-echo "In order to use jupyter notebook, follow the instruction" 
-echo "in previous cs231n assignment"
+echo "If you had no errors, You can proceed to work with your virtualenv as normal."
+echo "(run 'source .env/bin/activate' in your assignment directory to load the venv,"
+echo " and run 'deactivate' to exit the venv. See assignment handout for details.)"
