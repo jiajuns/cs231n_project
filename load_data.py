@@ -4,8 +4,8 @@
 Load Data
 
 set download num
-set output num 
-set video time 
+set output num
+set video time
 
 Output:
 - videos folder: original downloaded videos
@@ -22,13 +22,14 @@ from pprint import pprint
 import imageio
 # download plugins
 imageio.plugins.ffmpeg.download()
+from youtube_dl import YoutubeDL
 from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
 import cv2
 import numpy as np
 
 class Download_Video(object):
 
-    def __init__(self, download_num=10, output_num = 10, video_time = 60):
+    def __init__(self, download_num=10, output_num = 10, video_time = 60, max_video_size=1000000):
         # current path
         self.curr = os.getcwd()
         self.train_path = os.path.join(self.curr, 'datasets/train_2017/videodatainfo_2017.json')
@@ -41,7 +42,12 @@ class Download_Video(object):
         # frame parameters
         self.output_frames = output_num
         self.video_time = video_time
+        self.max_video_size = max_video_size
+        self.ytdl = YoutubeDL(params={'quiet':True})
 
+    def check_video_size(self, url):
+        info = self.ytdl.extract_info(url, download=False)
+        return info['formats'][0]['filesize']
 
     def download(self):
         download_count = 0
@@ -64,12 +70,13 @@ class Download_Video(object):
                 os.makedirs(d1)
 
             file_path = os.path.join(d1, idx)
+
             # if file already exists skip download
             if not os.path.isfile(file_path):
-                vid.download(d1)
-            print('*'*30)
+                video_size = self.check_video_size(url)
+                if video_size < self.max_video_size: vid.download(d1)
+
             print('Finish downloading {0}'.format(idx))
-            print('*'*30)
 
             download_count += 1
             if download_count >= self.download_num:
