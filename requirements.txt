@@ -53,3 +53,4 @@ traitlets==4.0.0
 pandas==0.19.2
 tensorflow-gpu
 keras==2.0.4
+h5py==2.5.0
