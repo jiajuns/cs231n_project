@@ -23,11 +23,11 @@ import imageio
 # download plugins
 imageio.plugins.ffmpeg.download()
 from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
-import cv2
+from moviepy.editor import VideoFileClip
 import numpy as np
+from PIL import Image
 
 class Download_Video(object):
-
     def __init__(self, download_num=10, output_num = 10, video_time = 60):
         # current path
         self.curr = os.getcwd()
@@ -37,22 +37,29 @@ class Download_Video(object):
             f.close()
 
         self.download_num = download_num
-
-        # frame parameters
-        self.output_frames = output_num
+        self.output_frames = output_num         # frame parameters
         self.video_time = video_time
 
 
+        
+    # when download video, download_count doesn't count invalid url. 
+    # if download_num=10, it will exactly count 10 videos.
     def download(self):
+        
         download_count = 0
         for video_idx, video in enumerate(self.train['videos']):
+            
             # get video information
             idx = video['video_id']
             url = video['url']
 
             # download videos
-            yt = YouTube(url)
-            yt.set_filename(idx)
+            try:
+                yt = YouTube(url)
+                yt.set_filename(idx)
+            except:
+                print(idx,'url is invalid')
+                continue
 
             try:
                 vid = yt.get('mp4')
@@ -63,96 +70,91 @@ class Download_Video(object):
             if not os.path.exists(d1):
                 os.makedirs(d1)
 
-            file_path = os.path.join(d1, idx)
+            file_path = os.path.join(d1, idx+'.mp4')
+            
             # if file already exists skip download
             if not os.path.isfile(file_path):
                 vid.download(d1)
-            print('*'*30)
-            print('Finish downloading {0}'.format(idx))
-            print('*'*30)
-
+            
             download_count += 1
             if download_count >= self.download_num:
                 break
 
-
+                
+    # cut video clip. if download_num=10, it will exactly preprocess 10 videos.
     def preprocess(self):
-        # cut video clip
+  
         Y = []
-        download_count = 0
+        process_count = 0
         for video_idx, video in enumerate(self.train['videos']):
-
             # get video information
             category = video['category']
             idx = video['video_id']
-
+            url = video['url']
+            
+            try:
+                yt = YouTube(url)
+            except:
+                print(idx,'url is invalid')
+                continue
+                
             # save category label
             Y.append(category)
-
-            url = video['url']
             start_time = video['start time']
             end_time = video['end time']
 
+            
             # normalize videos datasets by unifying the clip time
-            end_time = start_time + self.video_time
+            if end_time-start_time > self.video_time:
+                end_time = start_time + self.video_time
 
+                       
+            # check and create path
             d1 = os.path.join(self.curr, 'datasets/videos')
             oname = os.path.join(d1, idx+'.mp4')
             d2 = os.path.join(self.curr, 'datasets/processed')
-
+            
+            if not os.path.exists(oname):
+                print('video{0} does not exist'.format(idx))
+                continue
+                
             if not os.path.exists(d2):
                 os.makedirs(d2)
-
+               
             tname = os.path.join(d2, 'processed_'+idx+".mp4")
-
-            if os.path.isfile(tname):
-                download_count += 1
-                if download_count >= self.download_num:
-                    print('Finish preprocess Video {0}'.format(idx))
-                    break
-                print('Finish preprocess Video {0}'.format(idx))
-                continue
-
+                      
+            
+            # cut frames
             ffmpeg_extract_subclip(oname, start_time, end_time, targetname=tname)
-            vidcap = cv2.VideoCapture(tname)
-
-            # total counts of frames
-            success, image = vidcap.read()
-            tot_count = 0
-            success = True
-            while success:
-                success, image = vidcap.read()
+            vidcap = VideoFileClip(tname)
+            
+            # set frames interval
+            tot_count = 0 
+            for frame in vidcap.iter_frames(): # count total frames
                 tot_count += 1
-
             output_interval = tot_count // self.output_frames
-
-            # how many frames per second
             frame_rate = tot_count // self.video_time
 
-            vidcap = cv2.VideoCapture(tname)
-            success,image = vidcap.read()
+            # cut frames
+            vidcap = VideoFileClip(tname)
             count = 0
             frame_count = 0
-            while success:
-                success,image = vidcap.read()
+            for frame in vidcap.iter_frames():
                 count += 1
                 if count % output_interval == 0: # per second
-
                     # check the number of output frames
                     if frame_count == self.output_frames:
                         break
                     frame_count += 1
+                    img = Image.fromarray(frame, 'RGB')
                     directory = os.path.join(self.curr, 'datasets/frames', idx)
                     if not os.path.exists(directory):
                         os.makedirs(directory)
-                    cv2.imwrite(os.path.join(directory, "frame%d.jpg" % count), image)
-
-            print('*'*30)
-            print('Finish processing Video {0}'.format(idx))
-            print('*'*30)
-
-            download_count += 1
-            if download_count >= self.download_num:
+                    img.save(os.path.join(directory, "frame%d.jpg" % frame_count))
+             
+            process_count += 1 
+            if process_count >= self.download_num:
+                print('Finish preprocess all videos')
                 break
 
         # save category

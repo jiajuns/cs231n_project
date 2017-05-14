@@ -5,7 +5,7 @@ from keras.applications.vgg16 import VGG16
 from keras.applications.vgg16 import preprocess_input, decode_predictions
 import numpy as np
 from PIL import Image
-from keras.layers import Dense, GlobalAveragePooling2D
+from keras.layers import Dense, GlobalAveragePooling2D, Activation
 from keras.layers import Input, Flatten, Dense
 from keras.models import Model
 from keras import optimizers
@@ -13,6 +13,9 @@ from keras.layers.pooling import MaxPooling3D
 from keras.layers.core import Flatten
 import glob
 import os
+import h5py as h5py
+import tensorflow as tf
+from keras.layers.core import Dropout
 
 curr = os.getcwd()
 video_dir = curr + '/datasets/frames'
@@ -52,18 +55,21 @@ class video_classification(object):
         return my_model
 
     def load_features(self, frame_dir, num_videos):
-        features_ls = []
 
-        # (num_samples, num_frames_per_video, h, w, c)
-        # h, w, c are from vgg output
-        all_data = np.zeros((5, 10, 7, 7, 512))
+        
+        all_data = np.zeros((num_videos, 10, 7, 7, 512)) # (#samples, #frames_per_video, h, w, c); h, w, c from vgg output
+        
         for i in range(0, num_videos):
-            for fn in glob.glob(frame_dir +'/video'+str(i)+'/*.jpg'):
+            features_ls = []
+            path = frame_dir +'/video'+str(i)
+            if not os.path.exists(path): continue
+                
+            for fn in glob.glob(path+'/*.jpg'):
                 im = Image.open(fn)
 
                 # resize image 
                 h, w, c= self.size
-                im_resized = im.resize((h, w),Image.ANTIALIAS)
+                im_resized = im.resize((h, w),Image.ANTIALIAS) # what's this step?
 
                 # transform to array
                 im_arr = np.transpose(im_resized, (0,1,2))
@@ -76,9 +82,8 @@ class video_classification(object):
 
                 # output vgg16 without 3 fc layers
                 features = self.model.predict(im_arr)
-
                 features_ls.append(features)
-
+                
             # concatenate
             con_feat = np.concatenate(features_ls, axis = 0)
             all_data[0] = con_feat
@@ -88,34 +93,42 @@ class video_classification(object):
     def split_train_test(self):
         data = load_features
 
-    def train(self, X, y):
+    def train(self, X, y, lr = 1e-3):
+        num_classes = len(np.unique(y))
+        
         # create new model
 
         # Temporal max pooling
-        num_classes = len(np.unique(y))
-
-        # num_frames_per_video
         x = Input(shape = (10, 7, 7, 512))
-        mp = MaxPooling3D(pool_size=(2, 2, 2), strides=(1, 1, 1), padding='valid', data_format=None)(x)
+        mp = MaxPooling3D(pool_size=(3, 2, 2), strides=(3, 2, 2), padding='valid', data_format='channels_last')(x)
         mp_flat = Flatten()(mp)
         fc1 = Dense(units = 2048)(mp_flat)
         fc2 = Dense(units = 512)(fc1)
         fc3 = Dense(units = num_classes)(fc2)
-        add_model = Model(inputs=x, outputs=fc2)
-        sgd_m = optimizers.SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
+        sf = Activation('softmax')(fc3)
+        add_model = Model(inputs=x, outputs=sf)
+        sgd_m = optimizers.SGD(lr=lr, decay=1e-6, momentum=0.9, nesterov=True)
         add_model.compile(optimizer=sgd_m,
-                      loss='sparse_categorical_crossentropy',
+                      loss='categorical_crossentropy',
                       metrics=['accuracy'])
-
-        bsize = X.shape[0] / 20
+        
+        from keras.utils import to_categorical
+        
+        y = to_categorical(y, num_classes=20)
+        
+        
+        bsize = X.shape[0] // 10
+        bsize = 30
 
         print('Model is Training...')
-        add_model.fit(X, y, epochs=10, batch_size= bsize, verbose = 1, validation_split = 0.2)
+        hist = add_model.fit(X, y, epochs=100, batch_size= bsize, validation_split = 0.2, verbose = 0)
 
         self.add_model = add_model
+        return hist
 
     def predict(self, Xte, yte):
         ypred = self.add_model.predict(Xte)
+        ypred = np.argmax(ypred, axis = 1)
         acc = np.mean(ypred == yte)
         print('Video Classification Accuracy: {0}'.format(acc))
                 
