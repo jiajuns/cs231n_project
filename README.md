@@ -1,4 +1,20 @@
 # cs231n_project
+
+# progress
+500 videos were downloaded and processed  
+Architecture:  
+pretrained vgg16 without 3 fully-connected  
+fuse features  
+3d max-pooling  
+3 fully-connected   
+softmax 
+result: train and validation accuracies are around 11%, test accuracy is around 10%
+loss moves normally
+
+# To-do list:  
+Download model and train more videos  
+Finish project milestone  
+
 # Get Started
 create google cloud instance  
 set up python environment for google cloud  
