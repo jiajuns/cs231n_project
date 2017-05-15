@@ -165,9 +165,6 @@ class Download_Video(object):
         return (idx, category)
 
     def preprocess_organizer(self):
-        # cut video clip
-        Y = []
-
         download_count = 0
         root_path = os.path.join(self.curr, 'datasets')
         process_path = os.path.join(root_path, 'processed')
@@ -177,7 +174,8 @@ class Download_Video(object):
 
         if not os.path.exists(os.path.join(root_path, 'frames')):
             os.makedirs(os.path.join(root_path, 'frames'))
-
+        
+        previous_output = []
         task_list = []
         for video_idx, video_info in enumerate(self.train['videos']):
             idx = video_info['video_id']
@@ -187,8 +185,11 @@ class Download_Video(object):
 
             completely_processed = (os.path.isfile(tname) and os.path.exists(directory))
             raw_data_exist = os.path.isfile(oname)
-
-            if (not completely_processed and raw_data_exist):
+            
+            if completely_processed:
+                previous_output.append([idx, video_info['category']])
+            
+            if ((not completely_processed) and raw_data_exist):
                 download_count += 1
                 task_list.append((video_info, root_path, self.video_time, self.output_frames))
                 # refresh all the legacy incomplete files
@@ -204,4 +205,4 @@ class Download_Video(object):
 
         # save category
         output_y_dir = self.curr + '/datasets/category.npy'
-        np.save(output_y_dir, np.array(list(output)))
+        np.save(output_y_dir, np.array(list(output) + list(previous_output)))
