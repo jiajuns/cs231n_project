@@ -35,7 +35,7 @@ class frame_process(object):
                 
             frame_path = video_path + '/frame' + str(self.frame_idx) +'.jpg'
             img = Image.open(frame_path)
-            img_resized = img.resize((h, w),Image.ANTIALIAS)
+            img_resized = img.resize((h, w), Image.ANTIALIAS)
             
             img.load()
             frame = np.asarray(img_resized, dtype = np.float32)

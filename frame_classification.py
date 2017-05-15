@@ -20,18 +20,20 @@ from keras import optimizers
 from keras.layers.pooling import MaxPooling3D
 from keras.layers.core import Flatten
 from keras.utils import to_categorical
+from keras import regularizers
 import glob
 import os
 import matplotlib.pyplot as plt 
 
 class frame_classification(object):
 
-    def __init__(self, lr, num_classes, name = 'VGG16', shape = (224, 224, 3)):
+    def __init__(self, lr, num_classes,  reg = 0.01, name = 'VGG16', shape = (224, 224, 3)):
         self.lr = lr # learning rate
         self.name = name # model name in case if we use different architecture
         self.size = shape # default size into pretrained model 
         self.hist = None
         self.num_classes = num_classes
+        self.reg = reg
     
     def model_create(self):
         
@@ -45,7 +47,8 @@ class frame_classification(object):
             # vgg 
             basic_vgg = VGG16(weights='imagenet', include_top=True)
             output_vgg16 = basic_vgg(input)
-            score = Dense(self.num_classes, activation='softmax', name='predictions')(output_vgg16)
+            score = Dense(self.num_classes, activation='softmax', name='predictions',          
+                          kernel_regularizer=regularizers.l2(self.reg))(output_vgg16)
             my_model = Model(inputs=input, outputs=score)
 
             # Nesterov Momentum

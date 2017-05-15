@@ -53,22 +53,22 @@ class Download_Video(object):
     @staticmethod
     def downloader(task_info):
         video_id, video_url, file_path, max_video_size = task_info
-        ytdl = YoutubeDL(params={'quiet':True})
+        #ytdl = YoutubeDL(params={'quiet':True})
 
-        try:
+        #try:
             # check video size before downloading
-            info = ytdl.extract_info(video_url, download=False)
-        except:
-            logging.debug('fail to download {} with url{}'.format(video_id, video_url))
-            return False
+        #   info = ytdl.extract_info(video_url, download=False)
+        #except:
+        #    logging.debug('fail to download {} with url{}'.format(video_id, video_url))
+        #   return False
         
-        if info['formats'][0]['filesize'] is None:
-            logging.debug('fail to download {} with url{}'.format(video_id, video_url))
-            return False
+        # if info['formats'][0]['filesize'] is None:
+        #   logging.debug('fail to download {} with url{}'.format(video_id, video_url))
+        #   return False
         
-        if info['formats'][0]['filesize'] > max_video_size:
-            logging.debug('fail to download {} with url{}'.format(video_id, video_url))
-            return False
+        # if info['formats'][0]['filesize'] > max_video_size:
+        #    logging.debug('fail to download {} with url{}'.format(video_id, video_url))
+        #    return False
         
         try:
             # download videos
