@@ -24,7 +24,8 @@ import shutil
 imageio.plugins.ffmpeg.download()
 from youtube_dl import YoutubeDL
 from moviepy.video.io.ffmpeg_tools import ffmpeg_extract_subclip
-import cv2
+from moviepy.editor import VideoFileClip
+from PIL import Image
 import numpy as np
 
 import logging
@@ -51,7 +52,7 @@ class Download_Video(object):
 
     @staticmethod
     def downloader(task_info):
-        video_id, video_url, file_path = task_info
+        video_id, video_url, file_path, max_video_size = task_info
         ytdl = YoutubeDL(params={'quiet':True})
 
         try:
@@ -60,15 +61,28 @@ class Download_Video(object):
         except:
             logging.debug('fail to download {} with url{}'.format(video_id, video_url))
             return False
-
-        # download videos
-        yt = YouTube(video_url)
-        yt.set_filename(video_id)
+        
+        if info['formats'][0]['filesize'] is None:
+            logging.debug('fail to download {} with url{}'.format(video_id, video_url))
+            return False
+        
+        if info['formats'][0]['filesize'] > max_video_size:
+            logging.debug('fail to download {} with url{}'.format(video_id, video_url))
+            return False
+        
+        try:
+            # download videos
+            yt = YouTube(video_url)
+            yt.set_filename(video_id)
+        except:
+            logging.debug('fail to download {} with url{}'.format(video_id, video_url))
+            return False
 
         try:
             vid = yt.get('mp4')
         except:
             vid = yt.get('mp4', '360p')
+            
         try:
             vid.download(file_path)
             logging.info('Finish downloading {0}'.format(video_id))
@@ -95,10 +109,8 @@ class Download_Video(object):
 
             # if file already exists skip download
             if not os.path.isfile(file_path):
-                if info['formats'][0]['filesize'] is not None:
-                    if info['formats'][0]['filesize'] < self.max_video_size:
-                        task_list.append((idx, url, file_path))
-                        download_count += 1
+                task_list.append((idx, url, file_path, self.max_video_size))
+                download_count += 1
 
             if download_count >= self.download_num:
                 break
@@ -123,28 +135,32 @@ class Download_Video(object):
         tname = os.path.join(root_path, 'processed', 'processed_'+idx+".mp4")
 
         ffmpeg_extract_subclip(oname, start_time, end_time, targetname=tname)
-        vidcap = cv2.VideoCapture(tname)
-
-        tot_count = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
+        vidcap = VideoFileClip(tname)
+        
+        tot_count = 0 
+        for frame in vidcap.iter_frames(): # count total frames
+            tot_count += 1
+        
+        #tot_count = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
         output_interval = tot_count // output_frames
-
+        
         # how many frames per second
         frame_rate = tot_count // video_time
 
-        success = True
+        vidcap = VideoFileClip(tname)
         count, frame_count = 0, 0
         directory = os.path.join(root_path, 'frames', idx)
-
-        while success:
-            success, image = vidcap.read()
+        
+        for frame in vidcap.iter_frames():
             count += 1
             if count % output_interval == 0: # per second
                 # check the number of output frames
                 if frame_count == output_frames:
                     break
                 frame_count += 1
-                cv2.imwrite(os.path.join(directory, "frame%d.jpg" % count), image)
-
+                img = Image.fromarray(frame, 'RGB')
+                img.save(os.path.join(directory, "frame%d.jpg" % frame_count))
+                
         logging.info('Finish processing Video {0}'.format(idx))
         return (idx, category)
 
