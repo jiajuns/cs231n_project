@@ -20,14 +20,15 @@ class frame_process(object):
     def process(self):
 
         curr_path = os.getcwd() + '/datasets/frames'
-
+        
+        labels = np.load(os.getcwd() + '/datasets/category.npy')
+        
         h, w, c = self.size
-
         data = np.zeros((self.num_video, h, w, c))
-
-        for idx in tqdm(range(self.num_video)):
-
-            video_path = curr_path + '/video' + str(idx)
+        
+        for i in tqdm(range(self.num_video)):
+            idx = labels[i, 0]
+            video_path = os.path.join(curr_path, idx)
             
             if not os.path.exists(video_path):
                 continue
@@ -39,7 +40,7 @@ class frame_process(object):
             img.load()
             frame = np.asarray(img_resized, dtype = np.float32)
 
-            data[idx] = frame
+            data[i] = frame
 
         return data 
 
