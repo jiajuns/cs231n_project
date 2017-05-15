@@ -69,7 +69,7 @@ class video_classification(object):
 
                 # resize image 
                 h, w, c= self.size
-                im_resized = im.resize((h, w),Image.ANTIALIAS) # what's this step?
+                im_resized = im.resize((h, w),Image.ANTIALIAS) # what's this step? resize image to default size
 
                 # transform to array
                 im_arr = np.transpose(im_resized, (0,1,2))

@@ -30,29 +30,30 @@ class frame_classification(object):
         self.lr = lr # learning rate
         self.name = name # model name in case if we use different architecture
         self.size = shape # default size into pretrained model 
-        self.model = None
         self.hist = None
         self.num_classes = num_classes
-
-    def model(self):
+    
+    def model_create(self):
+        
         '''create model'''
-
+        
         if self.name == 'VGG16':
 
             # build up model
-            input = Input(shape=self.size,name = 'image_input')
+            input = Input(shape=self.size, name = 'image_input')
 
             # vgg 
             basic_vgg = VGG16(weights='imagenet', include_top=True)
             output_vgg16 = basic_vgg(input)
-            my_model = Dense(num_classes, activation='softmax', name='predictions')(output_vgg16)
+            score = Dense(self.num_classes, activation='softmax', name='predictions')(output_vgg16)
+            my_model = Model(inputs=input, outputs=score)
 
             # Nesterov Momentum
-            sdg_m = keras.optimizers.SGD(lr=self.lr, momentum=0.9, decay=1e-6, nesterov=True)
+            sgd_m = keras.optimizers.SGD(lr=self.lr, momentum=0.9, decay=1e-6, nesterov=True)
             my_model.compile(loss='categorical_crossentropy',
               optimizer=sgd_m,
               metrics=['accuracy'])
-
+        
         return my_model
 
     def train(self, X, y, bsize = 32, epoch = 10, verbose = False, split_ratio = 0.2):
@@ -65,13 +66,12 @@ class frame_classification(object):
         verbose: show process in training or not 
         split_ratio: validation set split ratio 
         '''
-        my_model = self.model()
 
+        self.model = self.model_create()
         # to one hot format
         y = to_categorical(y, self.num_classes)
 
-        hist = my_model.fit(X, y, batch_size = bsize, epochs = epoch, verbose = verbose, validation_split = split_ratio)
-        self.model = my_model
+        hist = self.model.fit(X, y, batch_size = bsize, epochs = epoch, verbose = verbose, validation_split = split_ratio)
         self.hist = hist 
 
     def predict(self, Xte, yte):
@@ -89,7 +89,7 @@ class frame_classification(object):
         '''
         plot accuracy and loss 
         '''
-        
+        plt.figure()
         plt.subplot(121)
         plt.plot(self.hist.history['acc'])
         plt.plot(self.hist.history['val_acc'])
