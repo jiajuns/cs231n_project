@@ -52,6 +52,14 @@ class Download_Video(object):
     @staticmethod
     def downloader(task_info):
         video_id, video_url, file_path = task_info
+        ytdl = YoutubeDL(params={'quiet':True})
+
+        try:
+            # check video size before downloading
+            info = ytdl.extract_info(video_url, download=False)
+        except:
+            logging.debug('fail to download {} with url{}'.format(video_id, video_url))
+            return False
 
         # download videos
         yt = YouTube(video_url)
@@ -66,10 +74,12 @@ class Download_Video(object):
             logging.info('Finish downloading {0}'.format(video_id))
         except:
             logging.debug('fail to download {} with url{}'.format(video_id, video_url))
+            return False
+
+        return True
 
     def download_organizer(self):
         download_count = 0
-        ytdl = YoutubeDL(params={'quiet':True})
         d1 = os.path.join(self.curr, 'datasets/videos')
         if not os.path.exists(d1):
             os.makedirs(d1)
@@ -85,12 +95,6 @@ class Download_Video(object):
 
             # if file already exists skip download
             if not os.path.isfile(file_path):
-                try:
-                    # check video size before downloading
-                    info = ytdl.extract_info(url, download=False)
-                except:
-                    continue
-
                 if info['formats'][0]['filesize'] is not None:
                     if info['formats'][0]['filesize'] < self.max_video_size:
                         task_list.append((idx, url, file_path))
