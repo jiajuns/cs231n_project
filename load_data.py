@@ -18,7 +18,7 @@ from pytube import YouTube
 from pprint import pprint
 import imageio
 import multiprocessing
-import shutil
+import glob
 
 # download plugins
 imageio.plugins.ffmpeg.download()
@@ -183,7 +183,7 @@ class Download_Video(object):
             oname = os.path.join(root_path, 'videos', '{}.mp4'.format(idx))
             directory = os.path.join(root_path, 'frames', idx)
 
-            completely_processed = (os.path.isfile(tname) and os.path.exists(directory))
+            completely_processed = (os.path.isfile(tname) and len(glob.glob(directory+'/*')) == self.output_frames)
             raw_data_exist = os.path.isfile(oname)
             
             if completely_processed:
