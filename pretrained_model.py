@@ -30,8 +30,8 @@ import cv2
 curr = os.getcwd()
 video_dir = curr + '/datasets/frames'
 
-''' 
-include_top = True: contain three fully-connected layers and 
+'''
+include_top = True: contain three fully-connected layers and
 could be decoded as imagenet class
 include_top = False: not contain three fully-connected
 
@@ -62,84 +62,73 @@ class video_classification(object):
         return my_model
 
     def load_features(self, frame_dir, num_videos):
-
-        
         all_data = np.zeros((num_videos, 10, 7, 7, 512)) # (#samples, #frames_per_video, h, w, c); h, w, c from vgg output
         labels = np.load(os.getcwd() + '/datasets/category.npy')
-        
+
         for i in tqdm(range(0, num_videos)):
-            idx = labels[i, 0]
-            features_ls = []
-            path = os.path.join(frame_dir, idx)
-            
-            if not os.path.exists(path):
-                print('path not exists for {}'.format(idx))
-                continue
-            for fn in glob.glob(path+'/*.jpg'):
-                im = Image.open(fn)
-                # resize image 
-                h, w, c= self.size
-                im_resized = im.resize((h, w), Image.ANTIALIAS) 
+        #     idx = labels[i, 0]
+        #     features_ls = []
+        #     path = os.path.join(frame_dir, idx)
 
-                # transform to array
-                im_arr = np.transpose(np.array(im_resized), (0,1,2))
+        #     if not os.path.exists(path):
+        #         print('path not exists for {}'.format(idx))
+        #         continue
 
-                # preprocess image
-                im_arr = np.expand_dims(im_arr, axis=0) # add one dimension as 1
-                im_arr.flags.writeable = True
-                im_arr = im_arr.astype(np.float64)
-                im_arr = preprocess_input(im_arr)
+        #     for fn in glob.glob(path+'/*.jpg'):
+        #         im = Image.open(fn)
+        #         # resize image
+        #         h, w, c= self.size
+        #         im_resized = im.resize((h, w), Image.ANTIALIAS)
 
-                # output vgg16 without 3 fc layers
-                features = self.model.predict(im_arr)
-                features_ls.append(features)
-                
-            # image_paths_list = [path + '/frame' +str(idx)+'.jpg' for idx in range(1, 11, 1)]
+        #         # transform to array
+        #         im_arr = np.transpose(np.array(im_resized), (0,1,2))
 
-            # images = self.process_images(image_paths_list)
-            
+        #         # preprocess image
+        #         im_arr = np.expand_dims(im_arr, axis=0) # add one dimension as 1
+        #         im_arr.flags.writeable = True
+        #         im_arr = im_arr.astype(np.float64)
+        #         im_arr = preprocess_input(im_arr)
+
+        #         # output vgg16 without 3 fc layers
+        #         features = self.model.predict(im_arr)
+        #         features_ls.append(features)
+
+            image_paths_list = [os.path.join(path, 'frame{}.jpg'.format(idx)) for idx in range(1, 11, 1)]
+            features_ls = self.process_images(image_paths_list)
             # features_ls = [self.model.predict(im) for im in images]
-                
-            # concatenate
+
+            # # concatenate
             con_feat = np.concatenate(features_ls, axis = 0)
             all_data[0] = con_feat
 
         return all_data
-    
+
     def process_images(self, image_paths_list):
-        
         model = VGG16(weights='imagenet', include_top=False)
         images = Parallel(n_jobs=4, verbose=5)(
                 delayed(cv2.imread)(f) for f in image_paths_list
         )
-        
-        def resize_method():
-            def resize(im):
-                im_resized = cv2.resize(im, (224, 224))
-                im_arr = np.expand_dims(im_resized, axis=0) # add one dimension as 1
-                im_arr.flags.writeable = True
-                im_arr = im_arr.astype(np.float64)
-                im_arr = preprocess_input(im_arr)
-                return im_arr
-            return resize
+
+        def resize_method(im):
+            im_resized = cv2.resize(im, (224, 224))
+            im_arr = np.expand_dims(im_resized, axis=0) # add one dimension as 1
+            im_arr.flags.writeable = True
+            im_arr = im_arr.astype(np.float64)
+            im_arr = preprocess_input(im_arr)
+            return img_as_float(im_arr)
 
         p = mp.Pool(mp.cpu_count())
-        images = p.map(resize_method(), images)
-        p.close()
-        p.join()
-        
-        images = Parallel(n_jobs=5, verbose=5)(
-            delayed(img_as_float)(f) for f in images
-        )
-        
-        return images
+        resized_img = p.map(resize_method(), images)
+        features = model.predict(resized_img, batch_size=10)
+
+        return features
 
     def split_train_test(self):
         data = load_features
 
     def train(self, X, y, lr = 1e-3):
         num_classes = len(np.unique(y))
-        
+
         # create new model
 
         # Temporal max pooling
@@ -155,12 +144,12 @@ class video_classification(object):
         add_model.compile(optimizer=sgd_m,
                       loss='categorical_crossentropy',
                       metrics=['accuracy'])
-        
+
         from keras.utils import to_categorical
-        
+
         y = to_categorical(y, num_classes=20)
-        
-        
+
+
         bsize = X.shape[0] // 10
         bsize = 30
 
@@ -175,6 +164,6 @@ class video_classification(object):
         ypred = np.argmax(ypred, axis = 1)
         acc = np.mean(ypred == yte)
         print('Video Classification Accuracy: {0}'.format(acc))
-                
+
 
 
