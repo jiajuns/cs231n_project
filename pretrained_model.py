@@ -93,6 +93,7 @@ class video_classification(object):
                 # output vgg16 without 3 fc layers
                 features = self.model.predict(im_arr)
                 features_ls.append(features)
+                
             # image_paths_list = [path + '/frame' +str(idx)+'.jpg' for idx in range(1, 11, 1)]
 
             # images = self.process_images(image_paths_list)
