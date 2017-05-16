@@ -11,16 +11,14 @@ from keras.models import Model
 from keras import optimizers
 from keras.layers.pooling import MaxPooling3D
 from keras.layers.core import Flatten
+from keras.utils import to_categorical
 import glob
 import os
-import h5py as h5py
+import h5py
 import tensorflow as tf
 from keras.layers.core import Dropout
 from keras import regularizers
 from tqdm import tqdm
-from scipy.misc import imread, imsave
-from sklearn.externals.joblib import Parallel, delayed
-from PIL import Image
 from scipy.misc import imread, imsave
 from sklearn.externals.joblib import Parallel, delayed
 from skimage import img_as_float
@@ -40,29 +38,32 @@ VGG16 default size 224 * 224 * 3
 
 class video_classification(object):
 
-    def __init__(self, lr = 1e-2, reg = 0.01, name = 'VGG16', shape = (224, 224, 3)):
+    def __init__(self, name = 'VGG16', shape = (224, 224, 3)):
         self.size = shape
-        self.lr = lr # learning rate
-        self.reg = reg
         self.features = None
+        self.hist = None
+        
         if name == 'VGG16':
             self.model = self.vgg_16_pretrained()
         else:
             pass
 
     def vgg_16_pretrained(self):
-        # build up model
-        input = Input(shape=self.size,name = 'image_input')
+        '''
+        VGG 16 pretrained model without last 3 fully-connected
+        '''
 
         # vgg without 3 fc
-        basic_vgg = VGG16(weights='imagenet', include_top=False)
-        output_vgg16 = basic_vgg(input)
-        my_model = basic_vgg
-
-        return my_model
+        return VGG16(weights='imagenet', include_top=False)
+        
 
     def load_features(self, frame_dir, num_videos):
-
+        '''
+        Concanate video frames over short clip period
+        
+        frame_dir: frames folder directory
+        num_videos: how many videos needed
+        '''
         
         all_data = np.zeros((num_videos, 10, 7, 7, 512)) # (#samples, #frames_per_video, h, w, c); h, w, c from vgg output
         labels = np.load(os.getcwd() + '/datasets/category.npy')
@@ -107,6 +108,9 @@ class video_classification(object):
         return all_data
     
     def process_images(self, image_paths_list):
+        '''
+        multiprocess load and process frames
+        '''
         
         model = VGG16(weights='imagenet', include_top=False)
         images = Parallel(n_jobs=4, verbose=5)(
@@ -135,10 +139,29 @@ class video_classification(object):
         return images
 
     def split_train_test(self):
+        '''
+        split features and true labels into training sets and test sets
+        '''
         data = load_features
 
-    def train(self, X, y, lr = 1e-3):
-        num_classes = len(np.unique(y))
+    def train(self, Xtr, ytr, lr = 1e-3, reg = 0.01, lr_decay = 1e-6, optimizer = 'Adam', \
+              bsize = 32, epochs = 100, split_ratio = 0.2, verbose = 0):
+        '''
+        Temporal feature pooling architecture based on pretrained model
+        3D max pooling (T, H, W) + fully-connected + fully_connected + softmax
+        
+        Xtr: training features data (sample_size, temporal/frames, height, width, filter_num/channels)
+        ytr: training true lables (sample_size,)
+        lr: learning rate
+        reg: regularization 
+        lr_decay: learning rate decay
+        optimizer: optimizer method
+        bsize: minibatch size
+        epochs: epoch to train
+        split_ratio: validation split ratio
+        verbose: boolean, show process stdout (1) or not (0)
+        '''
+        num_classes = len(np.unique(ytr))
         
         # create new model
 
@@ -146,35 +169,57 @@ class video_classification(object):
         x = Input(shape = (10, 7, 7, 512))
         mp = MaxPooling3D(pool_size=(3, 2, 2), strides=(3, 2, 2), padding='valid', data_format='channels_last')(x)
         mp_flat = Flatten()(mp)
-        fc1 = Dense(units = 2048, kernel_regularizer=regularizers.l2(self.reg))(mp_flat)
+        fc1 = Dense(units = 2048, kernel_regularizer=regularizers.l2(reg))(mp_flat)
+        
         # fc2 = Dense(units = 512, kernel_regularizer=regularizers.l2(self.reg))(fc1)
-        fc3 = Dense(units = num_classes, kernel_regularizer=regularizers.l2(self.reg))(fc1)
+        
+        fc3 = Dense(units = num_classes, kernel_regularizer=regularizers.l2(reg))(fc1)
         sf = Activation('softmax')(fc3)
         add_model = Model(inputs=x, outputs=sf)
         sgd_m = optimizers.SGD(lr=lr, decay=1e-6, momentum=0.9, nesterov=True)
-        add_model.compile(optimizer=sgd_m,
+        add_model.compile(optimizer=optimizer,
                       loss='categorical_crossentropy',
                       metrics=['accuracy'])
         
-        from keras.utils import to_categorical
-        
-        y = to_categorical(y, num_classes=20)
-        
-        
-        bsize = X.shape[0] // 10
-        bsize = 30
+        ytr = to_categorical(ytr, num_classes = num_classes)
 
         print('Model is Training...')
-        hist = add_model.fit(X, y, epochs=100, batch_size= bsize, validation_split = 0.2, verbose = 0)
+        hist = add_model.fit(Xtr, ytr, epochs=epochs, batch_size= bsize, validation_split = split_ratio, verbose = verbose)
 
         self.add_model = add_model
-        return hist
+        self.hist = hist
 
     def predict(self, Xte, yte):
+        '''
+        Xte: test feature data (sample_size, temporal/frames, height, width, filter_num/channels)
+        yte: test true labels (sample_size, )
+        '''
         ypred = self.add_model.predict(Xte)
         ypred = np.argmax(ypred, axis = 1)
         acc = np.mean(ypred == yte)
         print('Video Classification Accuracy: {0}'.format(acc))
+    
+    def plot(self):
+        '''
+        plot training history accuracy and loss between training sets and validation sets
+        '''
+        hist = self.hist
+        plt.subplot(121)
+        plt.plot(hist.history['loss'])
+        plt.plot(hist.history['val_loss'])
+        plt.title('model loss')
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        plt.legend(['train', 'validation'], loc='upper left')
+        
+        plt.subplot(122)
+        plt.plot(hist.history['acc'])
+        plt.plot(hist.history['val_acc'])
+        plt.title('model acc')
+        plt.ylabel('accuracy')
+        plt.xlabel('epoch')
+        plt.legend(['train', 'validation'], loc='upper left')
+        plt.show()
                 
 
 
