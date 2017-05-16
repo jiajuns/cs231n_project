@@ -18,6 +18,14 @@ import tensorflow as tf
 from keras.layers.core import Dropout
 from keras import regularizers
 from tqdm import tqdm
+from scipy.misc import imread, imsave
+from sklearn.externals.joblib import Parallel, delayed
+from PIL import Image
+from scipy.misc import imread, imsave
+from sklearn.externals.joblib import Parallel, delayed
+from skimage import img_as_float
+import multiprocess as mp
+import cv2
 
 curr = os.getcwd()
 video_dir = curr + '/datasets/frames'
@@ -50,11 +58,6 @@ class video_classification(object):
         basic_vgg = VGG16(weights='imagenet', include_top=False)
         output_vgg16 = basic_vgg(input)
         my_model = basic_vgg
-        # add two fc with 4096 units, respectively
-        # x = Flatten(name='flatten')(output_vgg16)
-        # x = Dense(4096, activation='relu', name='fc1')(x)
-        # x = Dense(4096, activation='relu', name='fc2')(x)
-        # my_model = Model(input=input, output=x)
 
         return my_model
 
@@ -72,7 +75,6 @@ class video_classification(object):
             if not os.path.exists(path):
                 print('path not exists for {}'.format(idx))
                 continue
-             
             for fn in glob.glob(path+'/*.jpg'):
                 im = Image.open(fn)
                 # resize image 
@@ -91,12 +93,45 @@ class video_classification(object):
                 # output vgg16 without 3 fc layers
                 features = self.model.predict(im_arr)
                 features_ls.append(features)
+            # image_paths_list = [path + '/frame' +str(idx)+'.jpg' for idx in range(1, 11, 1)]
+
+            # images = self.process_images(image_paths_list)
+            
+            # features_ls = [self.model.predict(im) for im in images]
                 
             # concatenate
             con_feat = np.concatenate(features_ls, axis = 0)
             all_data[0] = con_feat
 
         return all_data
+    
+    def process_images(self, image_paths_list):
+        
+        model = VGG16(weights='imagenet', include_top=False)
+        images = Parallel(n_jobs=4, verbose=5)(
+                delayed(cv2.imread)(f) for f in image_paths_list
+        )
+        
+        def resize_method():
+            def resize(im):
+                im_resized = cv2.resize(im, (224, 224))
+                im_arr = np.expand_dims(im_resized, axis=0) # add one dimension as 1
+                im_arr.flags.writeable = True
+                im_arr = im_arr.astype(np.float64)
+                im_arr = preprocess_input(im_arr)
+                return im_arr
+            return resize
+
+        p = mp.Pool(mp.cpu_count())
+        images = p.map(resize_method(), images)
+        p.close()
+        p.join()
+        
+        images = Parallel(n_jobs=5, verbose=5)(
+            delayed(img_as_float)(f) for f in images
+        )
+        
+        return images
 
     def split_train_test(self):
         data = load_features
