@@ -2,30 +2,27 @@
 
 # import module
 from keras.applications.vgg16 import VGG16
-from keras.applications.vgg16 import preprocess_input, decode_predictions
-import numpy as np
-from PIL import Image
-from keras.layers import Dense, GlobalAveragePooling2D, Activation
+from keras.applications.vgg16 import preprocess_input
+from keras.layers import Dense, Activation
 from keras.layers import Input, Flatten, Dense
 from keras.models import Model
 from keras import optimizers
 from keras.layers.pooling import MaxPooling3D
 from keras.layers.core import Flatten
-import glob
-import os
-import h5py as h5py
-import tensorflow as tf
 from keras.layers.core import Dropout
 from keras import regularizers
-from tqdm import tqdm
-from scipy.misc import imread, imsave
-from sklearn.externals.joblib import Parallel, delayed
-from PIL import Image
-from scipy.misc import imread, imsave
-from sklearn.externals.joblib import Parallel, delayed
-from skimage import img_as_float
-import multiprocess as mp
+
 import cv2
+from scipy.misc import imread, imsave
+from skimage import img_as_float
+from PIL import Image
+from sklearn.externals.joblib import Parallel, delayed
+
+import multiprocessing as mp
+import numpy as np
+import glob
+import os
+from tqdm import tqdm
 
 curr = os.getcwd()
 video_dir = curr + '/datasets/frames'
@@ -66,9 +63,8 @@ class video_classification(object):
         labels = np.load(os.getcwd() + '/datasets/category.npy')
 
         for i in tqdm(range(0, num_videos)):
-        #     idx = labels[i, 0]
-        #     features_ls = []
-        #     path = os.path.join(frame_dir, idx)
+            idx = labels[i, 0]
+            path = os.path.join(frame_dir, idx)
 
         #     if not os.path.exists(path):
         #         print('path not exists for {}'.format(idx))
@@ -93,33 +89,24 @@ class video_classification(object):
         #         features = self.model.predict(im_arr)
         #         features_ls.append(features)
 
-            image_paths_list = [os.path.join(path, 'frame{}.jpg'.format(idx)) for idx in range(1, 11, 1)]
+            image_paths_list = [os.path.join(path, 'frame{}.jpg'.format(frame_count)) for frame_count in range(1, 11, 1)]
             features_ls = self.process_images(image_paths_list)
-            # features_ls = [self.model.predict(im) for im in images]
-
-            # # concatenate
-            con_feat = np.concatenate(features_ls, axis = 0)
-            all_data[0] = con_feat
+            all_data[0] = features_ls
 
         return all_data
 
     def process_images(self, image_paths_list):
         model = VGG16(weights='imagenet', include_top=False)
-        images = Parallel(n_jobs=4, verbose=5)(
-                delayed(cv2.imread)(f) for f in image_paths_list
-        )
-
-        def resize_method(im):
-            im_resized = cv2.resize(im, (224, 224))
-            im_arr = np.expand_dims(im_resized, axis=0) # add one dimension as 1
-            im_arr.flags.writeable = True
-            im_arr = im_arr.astype(np.float64)
-            im_arr = preprocess_input(im_arr)
-            return img_as_float(im_arr)
 
         p = mp.Pool(mp.cpu_count())
-        resized_img = p.map(resize_method(), images)
+        images = p.map(Image.open, image_paths_list)
+        images = list(images)
+        resized_img = p.map(resize_method, images)
+        resized_img = np.concatenate(list(resized_img), axis=0)
         features = model.predict(resized_img, batch_size=10)
+
+        p.close()
+        p.join()
 
         return features
 
@@ -167,3 +154,10 @@ class video_classification(object):
 
 
 
+def resize_method(im):
+    im_resized = im.resize((224, 224))
+    im_arr = np.expand_dims(im_resized, axis=0) # add one dimension as 1
+    im_arr.flags.writeable = True
+    im_arr = im_arr.astype(np.float64)
+    im_arr = preprocess_input(im_arr)
+    return img_as_float(im_arr)
