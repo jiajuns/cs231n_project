@@ -11,13 +11,13 @@ from tqdm import *
 
 class frame_process(object):
 
-    def __init__(self, num_video, frame_idx, size = (224, 224, 3)):
+    def __init__(self, num_video, frame_idx = 1, size = (224, 224, 3)):
 
         self.num_video = num_video
         self.frame_idx = frame_idx
         self.size = size
 
-    def process(self):
+    def process_original(self):
 
         curr_path = os.getcwd() + '/datasets/frames'
         
@@ -43,5 +43,50 @@ class frame_process(object):
             data[i] = frame
 
         return data 
+    
+    
+    def process_updated(self, Xind, yind):
+        
+        frame_path = os.getcwd() + '/datasets/frames'
+        
+        X = []
+        h, w, c = self.size
+        for video_idx in tqdm(Xind):
+            
+            video_path = frame_path + '/video' + str(video_idx)
+            img = Image.open(video_path + '/frame' + str(self.frame_idx) + '.jpg')
+            img_resized = img.resize((h, w), Image.ANTIALIAS)
+            frame = np.asarray(img_resized, dtype = np.float32)
+            frame = np.expand_dims(frame, axis=0)
+            
+            # assert frame has 4 dimension
+            assert len(frame.shape) == 4
+            
+            X.append(frame)
+        
+        return np.concatenate(X, axis = 0)
+    
+    
+    
+    def process_updates_frameSeq_stacked(self, Xind, yind, num_frames = 10, fileName = "c3d_X_train"):
+        frame_dir = os.getcwd() + '/datasets/frames'
+        
+        h, w, c = self.size
+        video_frames = np.zeros( ( num_frames, h, w, c) )
+    
+        X = []
+        # read videos frames
+        for video_ind in tqdm(Xind):
+            path = frame_dir +'/video'+str(video_ind)
+            for fi in range(1,num_frames+1):
+                frame = Image.open(path+'/frame'+str(fi)+'.jpg')
+                frame = frame.resize( (h,w), Image.ANTIALIAS)
+                frame = np.asarray( frame, dtype = np.float32 ) # transform to array
+                video_frames[ fi-1] = frame
+           
+            X.append( np.expand_dims(video_frames, axis=0))
+            
+        X = np.concatenate(X, axis = 0)
+        np.save("./datasets/"+fileName, X)
 
-
+        return X
