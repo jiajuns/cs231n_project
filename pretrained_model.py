@@ -24,6 +24,7 @@ from skimage import img_as_float
 import multiprocess as mp
 from PIL import Image
 from tqdm import *
+import matplotlib.pyplot as plt
 
 curr = os.getcwd()
 video_dir = curr + '/datasets/frames'
@@ -54,7 +55,10 @@ class video_classification(object):
         '''
 
         # vgg without 3 fc
-        return VGG16(weights='imagenet', include_top=False)
+        model = VGG16(weights='imagenet', include_top=False)
+        for layer in model.layers:
+            layer.trainable = False
+        return model
         
 
     def load_features(self, frame_dir, num_videos):
@@ -72,37 +76,76 @@ class video_classification(object):
             print('Fuse video {0}/{1}'.format(i, num_videos))
             idx = labels[i, 0]
             path = os.path.join(frame_dir, idx)
+            features_ls = []
+            if not os.path.exists(path):
+                print('path not exists for {}'.format(idx))
+                continue
 
-        #     if not os.path.exists(path):
-        #         print('path not exists for {}'.format(idx))
-        #         continue
+                for fn in glob.glob(path+'/*.jpg'):
+                    im = Image.open(fn)
+                    # resize image
+                    h, w, c= self.size
+                    im_resized = im.resize((h, w), Image.ANTIALIAS)
 
-        #     for fn in glob.glob(path+'/*.jpg'):
-        #         im = Image.open(fn)
-        #         # resize image
-        #         h, w, c= self.size
-        #         im_resized = im.resize((h, w), Image.ANTIALIAS)
+                    # transform to array
+                    im_arr = np.transpose(np.array(im_resized), (0,1,2))
 
-        #         # transform to array
-        #         im_arr = np.transpose(np.array(im_resized), (0,1,2))
+                    # preprocess image
+                    im_arr = np.expand_dims(im_arr, axis=0) # add one dimension as 1
+                    im_arr.flags.writeable = True
+                    im_arr = im_arr.astype(np.float64)
+                    im_arr = preprocess_input(im_arr)
 
-        #         # preprocess image
-        #         im_arr = np.expand_dims(im_arr, axis=0) # add one dimension as 1
-        #         im_arr.flags.writeable = True
-        #         im_arr = im_arr.astype(np.float64)
-        #         im_arr = preprocess_input(im_arr)
+                    # output vgg16 without 3 fc layers
+                    features = self.model.predict(im_arr)
+                    features_ls.append(features)
 
-        #         # output vgg16 without 3 fc layers
-        #         features = self.model.predict(im_arr)
-        #         features_ls.append(features)
-
-            image_paths_list = [os.path.join(path, 'frame{}.jpg'.format(frame_count)) for frame_count in range(1, 11, 1)]
-            features_ls = self.process_images(image_paths_list)
-           # all_data[0] = features_ls
+        #    image_paths_list = [os.path.join(path, 'frame{}.jpg'.format(frame_count)) for frame_count in range(1, 11, 1)]
+        #    features_ls = self.process_images(image_paths_list)
+                all_data[0] = np.concatenate(features_ls, axis = 0)
  
 
         return all_data
+    
+    
+    def load_features_update(self, Xind, yind):
+        num_videos = len(Xind)
+        all_data = np.zeros((num_videos, 10, 7, 7, 512)) 
+        frame_path = os.getcwd() + '/datasets/frames'
+        
+        X = []
+        h, w, c = self.size
+        count = 0
+        for video_idx in tqdm(Xind):
+            
+            video_path = frame_path + '/video' + str(video_idx)
+            features_ls = []
+            for fn in glob.glob(video_path+'/*.jpg'):
+                im = Image.open(fn)
+                # resize image
+                h, w, c= self.size
+                im_resized = im.resize((h, w), Image.ANTIALIAS)
 
+                # transform to array
+                im_arr = np.transpose(np.array(im_resized), (0,1,2))
+
+                # preprocess image
+                im_arr = np.expand_dims(im_arr, axis=0) # add one dimension as 1
+                im_arr.flags.writeable = True
+                im_arr = im_arr.astype(np.float32)
+                im_arr = preprocess_input(im_arr)
+
+                # output vgg16 without 3 fc layers
+                features = self.model.predict(im_arr)
+                features_ls.append(features)
+            
+            all_data[count] = np.concatenate(features_ls, axis = 0)
+            count += 1
+            
+            
+        return all_data
+        
+        
     def process_images(self, image_paths_list):
         '''
         multiprocess load and process frames
@@ -145,16 +188,16 @@ class video_classification(object):
         split_ratio: validation split ratio
         verbose: boolean, show process stdout (1) or not (0)
         '''
-        num_classes = len(np.unique(y))
+        num_classes = len(np.unique(ytr))
         # create new model
 
         # Temporal max pooling
         x = Input(shape = (10, 7, 7, 512))
         mp = MaxPooling3D(pool_size=(3, 2, 2), strides=(3, 2, 2), padding='valid', data_format='channels_last')(x)
         mp_flat = Flatten()(mp)
-        fc1 = Dense(units = 2048, kernel_regularizer=regularizers.l2(reg))(mp_flat)
+        fc1 = Dense(units = 4096, kernel_regularizer=regularizers.l2(reg))(mp_flat)
         
-        # fc2 = Dense(units = 512, kernel_regularizer=regularizers.l2(self.reg))(fc1)
+        # fc2 = Dense(units = 256, kernel_regularizer=regularizers.l2(reg))(fc1)
         
         fc3 = Dense(units = num_classes, kernel_regularizer=regularizers.l2(reg))(fc1)
         sf = Activation('softmax')(fc3)
@@ -165,8 +208,6 @@ class video_classification(object):
                       metrics=['accuracy'])
         
         ytr = to_categorical(ytr, num_classes = num_classes)
-
-        y = to_categorical(y, num_classes=20)
 
         print('Model is Training...')
         hist = add_model.fit(Xtr, ytr, epochs=epochs, batch_size= bsize, validation_split = split_ratio, verbose = verbose)
@@ -195,7 +236,7 @@ class video_classification(object):
         plt.title('model loss')
         plt.ylabel('loss')
         plt.xlabel('epoch')
-        plt.legend(['train', 'validation'], loc='upper left')
+        plt.legend(['train', 'validation'], loc='upper right')
         
         plt.subplot(122)
         plt.plot(hist.history['acc'])
@@ -213,5 +254,5 @@ def resize_method(im):
     im_arr = np.expand_dims(im_resized, axis=0) # add one dimension as 1
     im_arr.flags.writeable = True
     im_arr = im_arr.astype(np.float64)
-    # im_arr = preprocess_input(im_arr)
+    im_arr = preprocess_input(im_arr)
     return img_as_float(im_arr)

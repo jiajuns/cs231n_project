@@ -27,13 +27,14 @@ import matplotlib.pyplot as plt
 
 class frame_classification(object):
 
-    def __init__(self, lr, num_classes,  reg = 0.01, name = 'VGG16', shape = (224, 224, 3)):
+    def __init__(self, lr, num_classes,  reg = 0.01, decay = 1e-6, name = 'VGG16', shape = (224, 224, 3)):
         self.lr = lr # learning rate
         self.name = name # model name in case if we use different architecture
         self.size = shape # default size into pretrained model 
         self.hist = None
         self.num_classes = num_classes
         self.reg = reg
+        self.decay = decay
     
     def model_create(self):
         
@@ -46,15 +47,17 @@ class frame_classification(object):
 
             # vgg 
             basic_vgg = VGG16(weights='imagenet', include_top=True)
+            for layer in basic_vgg.layers:
+                layer.trainable = False
             output_vgg16 = basic_vgg(input)
             score = Dense(self.num_classes, activation='softmax', name='predictions',          
                           kernel_regularizer=regularizers.l2(self.reg))(output_vgg16)
             my_model = Model(inputs=input, outputs=score)
 
             # Nesterov Momentum
-            sgd_m = keras.optimizers.SGD(lr=self.lr, momentum=0.9, decay=1e-6, nesterov=True)
+            sgd_m = keras.optimizers.SGD(lr=self.lr, momentum=0.9, decay=self.decay, nesterov=True)
             my_model.compile(loss='categorical_crossentropy',
-              optimizer=sgd_m,
+              optimizer='Adam',
               metrics=['accuracy'])
         
         return my_model
@@ -93,13 +96,14 @@ class frame_classification(object):
         plot accuracy and loss 
         '''
         plt.figure()
+        plt.grid()
         plt.subplot(121)
         plt.plot(self.hist.history['acc'])
         plt.plot(self.hist.history['val_acc'])
         plt.title('model accuracy')
         plt.ylabel('accuracy')
         plt.xlabel('epoch')
-        plt.legend(['train', 'validation'], loc='upper left')
+        plt.legend(['train', 'validation'], loc='upper right')
 
         plt.subplot(122)
         plt.plot(self.hist.history['loss'])
@@ -107,6 +111,6 @@ class frame_classification(object):
         plt.title('model loss')
         plt.ylabel('loss')
         plt.xlabel('epoch')
-        plt.legend(['train', 'validation'], loc='upper left')
+        plt.legend(['train', 'validation'], loc='upper right')
         plt.show()
 
