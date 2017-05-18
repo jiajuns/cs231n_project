@@ -29,11 +29,14 @@ def load_features(num_videos, num_frames, h, w, c, model_name='VGG16'):
         video_info_list.append((video_path, labels[i, 1], num_frames, h, w))
 
     p = mp.Pool(mp.cpu_count())
-    processed_frames = p.map(process_video, video_info_list)
-    processed_frames = list(processed_frames)
+    print('processing videos...')
 
-    p.close()
-    p.join()
+    processed_frames = []
+    # i = 0
+    for i, frames in enumerate(p.imap(process_video, video_info_list)):
+        # i += 1
+        print('process {0}/{1}'.format(i, num_videos))
+        processed_frames.append(frames)
 
     ytrain = [frames_info[0] for frames_info in processed_frames]
     frames = [frames_info[1] for frames_info in processed_frames]
@@ -44,6 +47,7 @@ def load_features(num_videos, num_frames, h, w, c, model_name='VGG16'):
         model = vgg_16_pretrained()
     else:
         pass
+    print('batch prediction using {} ...'.format(model_name))
     Xtrain = model.predict(frames)
     Xtrain = Xtrain.reshape((-1, num_frames, 7, 7, 512))
     return Xtrain, ytrain
