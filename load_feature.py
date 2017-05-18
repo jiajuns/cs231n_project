@@ -34,8 +34,7 @@ def load_features(num_videos, num_frames, h, w, c, model_name='VGG16'):
     processed_frames = []
     # i = 0
     for i, frames in enumerate(p.imap(process_video, video_info_list)):
-        # i += 1
-        print('process {0}/{1}'.format(i, num_videos))
+        if i % 100 == 0: print('process {0}/{1}'.format(i, num_videos))
         processed_frames.append(frames)
 
     ytrain = [frames_info[0] for frames_info in processed_frames]
@@ -70,9 +69,11 @@ def process_video(video_info):
     w = video_info[4]
 
     vidcap = VideoFileClip(video_path)
-    tot_count = 0
-    for frame in vidcap.iter_frames():
-        tot_count += 1
+    # tot_count = 0
+    # for frame in vidcap.iter_frames():
+    #     tot_count += 1
+
+    tot_count = int(vidcap.fps * vidcap.duration)
 
     output_interval = tot_count // output_frames
     vidcap = VideoFileClip(video_path)
