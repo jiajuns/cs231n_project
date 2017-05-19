@@ -20,6 +20,12 @@ def load_features(num_videos, num_frames, h, w, c, model_name='VGG16'):
     frame_dir: frames folder directory
     num_videos: how many videos needed
     '''
+    batch_size = 64
+    if model_name == 'VGG16':
+        model = vgg_16_pretrained()
+    else:
+        pass
+
     labels = np.load(os.getcwd() + '/datasets/category.npy')
     curr = os.getcwd()
     video_info_list = []
@@ -30,23 +36,51 @@ def load_features(num_videos, num_frames, h, w, c, model_name='VGG16'):
     p = mp.Pool(mp.cpu_count())
     print('processing videos...')
 
-    processed_frames = []
+    Xtrain = []
+    ytrain = []
+    temp_frames_collection = []
     for i, frames in enumerate(p.imap(process_video, video_info_list)):
-        if i % 100 == 0: print('process {0}/{1}'.format(i, num_videos))
-        processed_frames.append(frames)
+        ytrain.append(frames[0])
+        temp_frames_collection.append(frames[1])
 
-    ytrain = [frames_info[0] for frames_info in processed_frames]
-    frames = [frames_info[1] for frames_info in processed_frames]
-    frames = np.concatenate(frames, axis=0)
-    frames = frames.reshape((-1, h, w, c))
+        # process when accumulate 10 batches
+        if i % (10 * batch_size) == 0:
+            print('process {0}/{1}'.format(i, num_videos))
+            frames = np.concatenate(temp_frames_collection, axis=0)
+            temp_frames_collection = []
+            frames = frames.reshape((-1, h, w, c))
+            temp_Xtrain = model.predict(frames)
+            temp_Xtrain = temp_Xtrain.reshape((-1, num_frames, 7, 7, 512))
+            Xtrain.append(temp_Xtrain)
 
-    if model_name == 'VGG16':
-        model = vgg_16_pretrained()
-    else:
-        pass
-    print('batch prediction using {} ...'.format(model_name))
-    Xtrain = model.predict(frames)
-    Xtrain = Xtrain.reshape((-1, num_frames, 7, 7, 512))
+
+    # process the remaining frames
+    if len(temp_frames_collection) > 0:
+        frames = np.concatenate(temp_frames_collection, axis=0)
+        temp_frames_collection = []
+        frames = frames.reshape((-1, h, w, c))
+        temp_Xtrain = model.predict(frames)
+        temp_Xtrain = temp_Xtrain.reshape((-1, num_frames, 7, 7, 512))
+        Xtrain.append(temp_Xtrain)
+
+    Xtrain = np.concatenate(Xtrain)
+    ytrain = np.array(ytrain)
+    # ytrain = [frames_info[0] for frames_info in processed_frames]
+    # frames = [frames_info[1] for frames_info in processed_frames]
+    # frames = np.concatenate(frames, axis=0)
+
+
+    # stack_frames = np.zeros((len(processed_frames), num_frames, h, w, c), dtype=np.uint16)
+    # for i, frames_info in enumerate(processed_frames):
+    #     stack_frames[i, :, :, :, :] = frames_info[1].reshape(1, num_frames, h, w, c)
+
+    # stack_frames[:,:,:,0] = stack1.copy()
+
+    # frames = frames.reshape((-1, h, w, c))
+
+    # print('batch prediction using {} ...'.format(model_name))
+    # Xtrain = model.predict(frames)
+    # Xtrain = Xtrain.reshape((-1, num_frames, 7, 7, 512))
     return Xtrain, ytrain
 
 def vgg_16_pretrained():
@@ -67,9 +101,6 @@ def process_video(video_info):
     w = video_info[4]
 
     vidcap = VideoFileClip(video_path)
-    # tot_count = 0
-    # for frame in vidcap.iter_frames():
-    #     tot_count += 1
     tot_count = int(vidcap.fps * vidcap.duration)
 
     output_interval = tot_count // output_frames
@@ -85,7 +116,7 @@ def process_video(video_info):
             img = Image.fromarray(frame, 'RGB')
             processed_img = resize_method(img, h, w)
             video_selected_frames.append(processed_img)
-
+    del vidcap
     return (video_cateogory, video_selected_frames)
 
 def resize_method(im, h, w):
@@ -101,3 +132,4 @@ if __name__ == '__main__':
     # testing purpose
     Xtrain, ytrain = load_features(num_videos=2, num_frames=11, h=224, w=224, c=3)
     print(Xtrain.shape)
+    print(ytrain.shape)
