@@ -20,7 +20,6 @@ def load_features(num_videos, num_frames, h, w, c, model_name='VGG16'):
     frame_dir: frames folder directory
     num_videos: how many videos needed
     '''
-    all_data = np.zeros((num_videos, 10, 7, 7, 512))
     labels = np.load(os.getcwd() + '/datasets/category.npy')
     curr = os.getcwd()
     video_info_list = []
@@ -32,7 +31,6 @@ def load_features(num_videos, num_frames, h, w, c, model_name='VGG16'):
     print('processing videos...')
 
     processed_frames = []
-    # i = 0
     for i, frames in enumerate(p.imap(process_video, video_info_list)):
         if i % 100 == 0: print('process {0}/{1}'.format(i, num_videos))
         processed_frames.append(frames)
@@ -72,11 +70,9 @@ def process_video(video_info):
     # tot_count = 0
     # for frame in vidcap.iter_frames():
     #     tot_count += 1
-
     tot_count = int(vidcap.fps * vidcap.duration)
 
     output_interval = tot_count // output_frames
-    vidcap = VideoFileClip(video_path)
     count, frame_count = 0, 0
 
     video_selected_frames = list()
