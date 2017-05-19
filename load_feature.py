@@ -53,7 +53,6 @@ def load_features(num_videos, num_frames, h, w, c, model_name='VGG16'):
             temp_Xtrain = temp_Xtrain.reshape((-1, num_frames, 7, 7, 512))
             Xtrain.append(temp_Xtrain)
 
-
     # process the remaining frames
     if len(temp_frames_collection) > 0:
         frames = np.concatenate(temp_frames_collection, axis=0)
@@ -81,6 +80,7 @@ def load_features(num_videos, num_frames, h, w, c, model_name='VGG16'):
     # print('batch prediction using {} ...'.format(model_name))
     # Xtrain = model.predict(frames)
     # Xtrain = Xtrain.reshape((-1, num_frames, 7, 7, 512))
+
     return Xtrain, ytrain
 
 def vgg_16_pretrained():
