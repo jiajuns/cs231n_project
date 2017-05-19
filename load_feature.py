@@ -45,7 +45,7 @@ def load_features(num_videos, num_frames, h, w, c, model_name='VGG16'):
     else:
         pass
     print('batch prediction using {} ...'.format(model_name))
-    Xtrain = model.predict(frames)
+    Xtrain = model.predict(frames, batch_size=64)
     Xtrain = Xtrain.reshape((-1, num_frames, 7, 7, 512))
     return Xtrain, ytrain
 
@@ -85,7 +85,8 @@ def process_video(video_info):
             img = Image.fromarray(frame, 'RGB')
             processed_img = resize_method(img, h, w)
             video_selected_frames.append(processed_img)
-
+    
+    del vidcap
     return (video_cateogory, video_selected_frames)
 
 def resize_method(im, h, w):
