@@ -44,7 +44,7 @@ def load_features(num_videos, num_frames, h, w, c, model_name='VGG16'):
         temp_frames_collection.append(frames[1])
 
         # process when accumulate 10 batches
-        if i % (10 * batch_size) == 0:
+        if i % (1 * batch_size) == 0:
             print('process {0}/{1}'.format(i, num_videos))
             frames = np.concatenate(temp_frames_collection, axis=0)
             temp_frames_collection = []
@@ -64,22 +64,6 @@ def load_features(num_videos, num_frames, h, w, c, model_name='VGG16'):
 
     Xtrain = np.concatenate(Xtrain)
     ytrain = np.array(ytrain)
-    # ytrain = [frames_info[0] for frames_info in processed_frames]
-    # frames = [frames_info[1] for frames_info in processed_frames]
-    # frames = np.concatenate(frames, axis=0)
-
-
-    # stack_frames = np.zeros((len(processed_frames), num_frames, h, w, c), dtype=np.uint16)
-    # for i, frames_info in enumerate(processed_frames):
-    #     stack_frames[i, :, :, :, :] = frames_info[1].reshape(1, num_frames, h, w, c)
-
-    # stack_frames[:,:,:,0] = stack1.copy()
-
-    # frames = frames.reshape((-1, h, w, c))
-
-    # print('batch prediction using {} ...'.format(model_name))
-    # Xtrain = model.predict(frames)
-    # Xtrain = Xtrain.reshape((-1, num_frames, 7, 7, 512))
 
     return Xtrain, ytrain
 
