@@ -3,13 +3,14 @@
 # kerase
 from keras.layers import Dense, Activation
 from keras.layers import Input, Flatten, Dense
-from keras.models import Model
+# from keras.models import Model
 from keras.layers.recurrent import LSTM
 from keras import optimizers
 from keras.layers.core import Flatten
 from keras.utils import to_categorical
 from keras.layers.core import Dropout
 from keras import regularizers
+from keras.models import Sequential
 
 # system
 import os
@@ -31,10 +32,16 @@ VGG16 default size 224 * 224 * 3
 
 class video_classification(object):
 
-    def __init__(self, name = 'VGG16', shape = (224, 224, 3)):
+    def __init__(self, num_classes, num_frames, name='VGG16', shape =(224, 224, 3), optimizer ='Adam', dropout_rate=0.3, reg=0.01):
         self.size = shape
         self.features = None
         self.hist = None
+        self.num_classes = num_classes
+        self.num_frames = num_frames
+        self.dropout_rate = dropout_rate
+        self.reg = reg
+        self.optimizer = optimizer
+        self.build_model()
 
     def split_train_test(self):
         '''
@@ -42,12 +49,23 @@ class video_classification(object):
         '''
         pass
 
-    def train(self, Xtr, ytr, lr = 1e-3, reg = 0.01, lr_decay = 1e-6, optimizer = 'Adam', \
+    def build_model(self):
+        '''
+        LSTM model
+        LSTM(return all state) + LSTM(return all state) + LSTM(last state) + fully-connected + fully_connected -> softmax crossentropy error
+        '''
+        print('building model...')
+        self.model = Sequential()
+        self.model.add(LSTM(100, return_sequences=True, input_shape=(self.num_frames, 7*7*512)))
+        self.model.add(LSTM(100, return_sequences=True, dropout=self.dropout_rate))
+        self.model.add(LSTM(100, return_sequences=False, dropout=self.dropout_rate))
+        self.model.add(Dense(256, kernel_regularizer=regularizers.l2(self.reg)))
+        self.model.add(Dense(self.num_classes, kernel_regularizer=regularizers.l2(self.reg), activation='softmax'))
+        self.model.compile(optimizer=self.optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+
+    def train(self, Xtr, ytr, lr = 1e-3, lr_decay = 1e-6,
               bsize = 32, epochs = 100, split_ratio = 0.2, verbose = 0):
         '''
-        Temporal feature pooling architecture based on pretrained model
-        3D max pooling (T, H, W) + fully-connected + fully_connected + softmax
-
         Xtr: training features data (sample_size, temporal/frames, height, width, filter_num/channels)
         ytr: training true lables (sample_size,)
         lr: learning rate
@@ -59,38 +77,14 @@ class video_classification(object):
         split_ratio: validation split ratio
         verbose: boolean, show process stdout (1) or not (0)
         '''
-        num_classes = len(np.unique(ytr))
-        # create new model
-
-        # Temporal max pooling
-        LSTM_model = Sequential()
-        LSTM_model.add(LSTM(32, input_shape=(10, 64)))
-
-        # x = Input(shape = (10, 7, 7, 512))
-        # h1 =
-        # mp = MaxPooling3D(pool_size=(3, 2, 2), strides=(3, 2, 2), padding='valid', data_format='channels_last')(x)
-        # mp_flat = Flatten()(mp)
-        # fc1 = Dense(units = 4096, kernel_regularizer=regularizers.l2(reg))(mp_flat)
-
-        # fc2 = Dense(units = 256, kernel_regularizer=regularizers.l2(reg))(fc1)
-        # fc3 = Dense(units = num_classes, kernel_regularizer=regularizers.l2(reg))(fc1)
-        # sf = Activation('softmax')(fc3)
-
-
-        LSTM_model = Model(inputs=x, outputs=sf)
-        sgd_m = optimizers.SGD(lr=lr, decay=1e-6, momentum=0.9, nesterov=True)
-        LSTM_model.compile(optimizer=optimizer,
-                      loss='categorical_crossentropy',
-                      metrics=['accuracy'])
-
-        ytr = to_categorical(ytr, num_classes = num_classes)
-
+        # num_classes = len(np.unique(ytr))
+        ytr = to_categorical(ytr, num_classes = self.num_classes)
+        Xtr = Xtr.reshape((-1, self.num_frames, 7*7*512))
         print('Model is Training...')
-        hist = LSTM_model.fit(Xtr, ytr, epochs=epochs,
-                             batch_size= bsize, validation_split = split_ratio,
-                             verbose = verbose)
-
-        self.LSTM_model = LSTM_model
+        print(Xtr.shape)
+        hist = self.model.fit(Xtr, ytr, epochs=epochs,
+                             batch_size=bsize, validation_split=split_ratio,
+                             verbose=verbose)
         self.hist = hist
 
     def predict(self, Xte, yte):
@@ -98,7 +92,7 @@ class video_classification(object):
         Xte: test feature data (sample_size, temporal/frames, height, width, filter_num/channels)
         yte: test true labels (sample_size, )
         '''
-        ypred = self.LSTM_model.predict(Xte)
+        ypred = self.model.predict(Xte)
         ypred = np.argmax(ypred, axis = 1)
         acc = np.mean(ypred == yte)
         print('Video Classification Accuracy: {0}'.format(acc))

@@ -14,20 +14,29 @@ from skimage import img_as_float
 from keras.applications.vgg16 import VGG16
 from keras.applications.vgg16 import preprocess_input
 
-def load_features(num_videos, num_frames, h, w, c, model_name='VGG16'):
+def load_features(num_videos, num_frames, h, w, c):
     '''
     Concanate video frames over short clip period
     frame_dir: frames folder directory
     num_videos: how many videos needed
     '''
     batch_size = 64
-    if model_name == 'VGG16':
-        model = vgg_16_pretrained()
-    else:
-        pass
+    model = vgg_16_pretrained()
 
     labels = np.load(os.getcwd() + '/datasets/category.npy')
     curr = os.getcwd()
+    cache_path = os.path.join(curr, 'datasets', 'cache',
+                              'num_videos{0}_num_frame{1}.npz'.format(num_videos, num_frames))
+
+    # initialize cache dir
+    if not os.path.exists(os.path.join(curr, 'datasets', 'cache')):
+        os.makedirs(os.path.join(curr, 'datasets', 'cache'))
+
+    if os.path.isfile(cache_path):
+        print('find matched cache file {}'.format(cache_path))
+        cache_data = np.load(cache_path)
+        return cache_data['Xtrain'], cache_data['ytrain']
+
     video_info_list = []
     for i in range(num_videos):
         video_path = os.path.join(curr, 'datasets', 'processed', 'processed_{}.mp4'.format(labels[i, 0]))
@@ -40,7 +49,7 @@ def load_features(num_videos, num_frames, h, w, c, model_name='VGG16'):
     ytrain = []
     temp_frames_collection = []
     for i, frames in enumerate(p.imap(process_video, video_info_list)):
-        ytrain.append(frames[0])
+        ytrain.append(int(frames[0]))
         temp_frames_collection.append(frames[1])
 
         # process when accumulate 10 batches
@@ -65,6 +74,8 @@ def load_features(num_videos, num_frames, h, w, c, model_name='VGG16'):
     Xtrain = np.concatenate(Xtrain)
     ytrain = np.array(ytrain)
 
+    print('cache processed data...')
+    np.savez(cache_path, Xtrain=Xtrain, ytrain=ytrain)
     return Xtrain, ytrain
 
 def vgg_16_pretrained():
