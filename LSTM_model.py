@@ -56,10 +56,10 @@ class video_classification(object):
         '''
         print('building model...')
         self.model = Sequential()
-        self.model.add(LSTM(100, return_sequences=True, input_shape=(self.num_frames, 7*7*512)))
-        self.model.add(LSTM(100, return_sequences=True, dropout=self.dropout_rate))
-        self.model.add(LSTM(100, return_sequences=False, dropout=self.dropout_rate))
-        self.model.add(Dense(256, kernel_regularizer=regularizers.l2(self.reg)))
+        self.model.add(LSTM(512, return_sequences=True, input_shape=(self.num_frames, 7*7*512)))
+        self.model.add(LSTM(512, return_sequences=True, dropout=self.dropout_rate))
+        self.model.add(LSTM(256, return_sequences=False, dropout=self.dropout_rate))
+        self.model.add(Dense(128, kernel_regularizer=regularizers.l2(self.reg)))
         self.model.add(Dense(self.num_classes, kernel_regularizer=regularizers.l2(self.reg), activation='softmax'))
         self.model.compile(optimizer=self.optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
 

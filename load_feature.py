@@ -2,6 +2,7 @@ import numpy as np
 from tqdm import tqdm
 import glob
 import os
+import gc
 import multiprocessing as mp
 
 # image
@@ -14,7 +15,7 @@ from skimage import img_as_float
 from keras.applications.vgg16 import VGG16
 from keras.applications.vgg16 import preprocess_input
 
-def load_features(num_videos, num_frames, h, w, c):
+def load_features(num_videos, num_frames, h, w, c, skip_num=0):
     '''
     Concanate video frames over short clip period
     frame_dir: frames folder directory
@@ -26,7 +27,7 @@ def load_features(num_videos, num_frames, h, w, c):
     labels = np.load(os.getcwd() + '/datasets/category.npy')
     curr = os.getcwd()
     cache_path = os.path.join(curr, 'datasets', 'cache',
-                              'num_videos{0}_num_frame{1}.npz'.format(num_videos, num_frames))
+                              'num_videos{0}_skipnum{1}_num_frame{2}.npz'.format(num_videos, skip_num, num_frames))
 
     # initialize cache dir
     if not os.path.exists(os.path.join(curr, 'datasets', 'cache')):
@@ -38,14 +39,14 @@ def load_features(num_videos, num_frames, h, w, c):
         return cache_data['Xtrain'], cache_data['ytrain']
 
     video_info_list = []
-    for i in range(num_videos):
+    for i in range(skip_num, num_videos+skip_num):
         video_path = os.path.join(curr, 'datasets', 'processed', 'processed_{}.mp4'.format(labels[i, 0]))
         video_info_list.append((video_path, labels[i, 1], num_frames, h, w))
 
     p = mp.Pool(mp.cpu_count())
     print('processing videos...')
 
-    Xtrain = []
+    Xtrain = np.zeros((num_videos, num_frames, 7, 7, 512))
     ytrain = []
     temp_frames_collection = []
     for i, frames in enumerate(p.imap(process_video, video_info_list)):
@@ -53,29 +54,33 @@ def load_features(num_videos, num_frames, h, w, c):
         temp_frames_collection.append(frames[1])
 
         # process when accumulate 10 batches
-        if i % (1 * batch_size) == 0:
-            print('process {0}/{1}'.format(i, num_videos))
+        if (i+1) % (1 * batch_size) == 0:
+            print('process {0}/{1}'.format(i+1, num_videos))
             frames = np.concatenate(temp_frames_collection, axis=0)
-            temp_frames_collection = []
             frames = frames.reshape((-1, h, w, c))
             temp_Xtrain = model.predict(frames)
             temp_Xtrain = temp_Xtrain.reshape((-1, num_frames, 7, 7, 512))
-            Xtrain.append(temp_Xtrain)
+            Xtrain[i+1-1*batch_size:i+1,:,:,:,:] = temp_Xtrain
+            temp_frames_collection = []
 
     # process the remaining frames
     if len(temp_frames_collection) > 0:
         frames = np.concatenate(temp_frames_collection, axis=0)
-        temp_frames_collection = []
         frames = frames.reshape((-1, h, w, c))
         temp_Xtrain = model.predict(frames)
         temp_Xtrain = temp_Xtrain.reshape((-1, num_frames, 7, 7, 512))
-        Xtrain.append(temp_Xtrain)
+        Xtrain[-len(temp_frames_collection):,:,:,:,:] = temp_Xtrain
+        temp_frames_collection = []
 
     Xtrain = np.concatenate(Xtrain)
     ytrain = np.array(ytrain)
 
     print('cache processed data...')
     np.savez(cache_path, Xtrain=Xtrain, ytrain=ytrain)
+    
+    del model
+    gc.collect()
+    
     return Xtrain, ytrain
 
 def vgg_16_pretrained():
