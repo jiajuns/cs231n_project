@@ -7,6 +7,8 @@ import numpy as np
 from PIL import Image
 import os
 from tqdm import * 
+import matplotlib.pyplot as plt
+
 
 
 class frame_process(object):
@@ -68,7 +70,7 @@ class frame_process(object):
     
     
     
-    def process_updates_frameSeq_stacked(self, Xind, num_frames = 10):
+    def process_frameSeq(self, Xind, num_frames = 10):
         frame_dir = os.getcwd() + '/datasets/frames'
         
         h, w, c = self.size
@@ -79,11 +81,14 @@ class frame_process(object):
         for video_ind in tqdm(Xind):
             path = frame_dir +'/video'+str(video_ind)
             for fi in range(1, num_frames+1):
-                frame = Image.open(path+'/frame'+str(fi)+'.jpg')
-                frame = frame.resize( (h,w))
-                frame = np.asarray( frame, dtype = np.float32 )
+                frame_path = path+'/frame'+str(fi)+'.jpg'
+                if not os.path.exists(frame_path):
+                    raise ExceptionError('unvalid path')
+                    continue
+                img = Image.open(frame_path)
+                img_resized = img.resize( (h,w))
+                frame = np.asarray(img_resized, dtype = np.float32 )
                 video_frames[fi-1] = frame
-           
-            X.append( np.expand_dims(video_frames, axis=0))
+            X.append( np.expand_dims(np.copy(video_frames), axis=0))
         X = np.concatenate(X, axis = 0)
         return X
