@@ -1,6 +1,6 @@
 # !usr/env python 3.5
 
-# kerase
+# keras
 from keras.layers import Dense, Activation
 from keras.layers import Input, Flatten, Dense
 # from keras.models import Model
@@ -31,8 +31,8 @@ VGG16 default size 224 * 224 * 3
 '''
 
 class video_classification(object):
-
-    def __init__(self, num_classes, num_frames, name='VGG16', shape =(224, 224, 3), optimizer ='Adam', dropout_rate=0.3, reg=0.01):
+    
+    def __init__(self, num_classes, num_frames, name='VGG16', shape =(224, 224, 3), optimizer ='Adam', dropout_rate=0.5, reg=0.01):
         self.size = shape
         self.features = None
         self.hist = None
@@ -55,11 +55,47 @@ class video_classification(object):
         LSTM(return all state) + LSTM(return all state) + LSTM(last state) + fully-connected + fully_connected -> softmax crossentropy error
         '''
         print('building model...')
+        # self.model = Sequential()
+        # self.model.add(LSTM(512, return_sequences=True, input_shape=(self.num_frames, 7*7*512)))
+        # self.model.add(LSTM(512, return_sequences=True, dropout=self.dropout_rate))
+        # self.model.add(LSTM(256, return_sequences=False, dropout=self.dropout_rate))
+        # self.model.add(Dense(128, kernel_regularizer=regularizers.l2(self.reg)))
+        # self.model.add(Dense(self.num_classes, kernel_regularizer=regularizers.l2(self.reg), activation='softmax'))
+        # self.model.compile(optimizer=self.optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
+        
+        '''
+        (1) Build up model based on paper:
+        -- Beyond Short Snippets: Deep Networks for Video Classification
+        paper link: https://arxiv.org/abs/1503.08909
+        
+        The architecture is the following: 
+        
+        five stacked 512 cells LSTM -> softmax for each frames -> linear weighted to score (dense with unit 1)
+        
+        In the paper, there are four approaches to couple softmax scores for each frames. But the difference between 
+        them is less than 1%. Here I choose the one: return max
+        
+        (2) keras LSTM Reference:
+        LSTM source code link: https://github.com/fchollet/keras/blob/master/keras/layers/recurrent.py#L62
+        
+        -- Some explanations:
+        # to stack recurrent layers, you must use return_sequences=True
+        # on any recurrent layer that feeds into another recurrent layer.
+        
+        -- dropout: two choices, dropout and recurrent dropout  
+        recurrent dropout paper link: https://arxiv.org/pdf/1603.05118.pdf
+        Here I use both.
+        
+        -- Input shapes:
+        3D tensor with shape `(batch_size, timesteps, input_dim)
+        (Optional) 2D tensors with shape `(batch_size, output_dim)
+        '''
         self.model = Sequential()
         self.model.add(LSTM(512, return_sequences=True, input_shape=(self.num_frames, 7*7*512)))
-        self.model.add(LSTM(512, return_sequences=True, dropout=self.dropout_rate))
-        self.model.add(LSTM(256, return_sequences=False, dropout=self.dropout_rate))
-        self.model.add(Dense(128, kernel_regularizer=regularizers.l2(self.reg)))
+        self.model.add(LSTM(512, return_sequences=True, recurrent_dropout=self.dropout_rate, dropout = self.dropout_rate))
+        self.model.add(LSTM(512, return_sequences=True, recurrent_dropout=self.dropout_rate, dropout = self.dropout_rate))
+        self.model.add(LSTM(512, return_sequences=True, recurrent_dropout=self.dropout_rate, dropout = self.dropout_rate))
+        self.model.add(LSTM(512, return_sequences=False, recurrent_dropout=self.dropout_rate, dropout = self.dropout_rate))
         self.model.add(Dense(self.num_classes, kernel_regularizer=regularizers.l2(self.reg), activation='softmax'))
         self.model.compile(optimizer=self.optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
 
@@ -78,10 +114,16 @@ class video_classification(object):
         verbose: boolean, show process stdout (1) or not (0)
         '''
         # num_classes = len(np.unique(ytr))
+        # to one-hot dimension
         ytr = to_categorical(ytr, num_classes = self.num_classes)
+        
+        # check Xtrain shape dimension
+        # assert len(Xtr.shape) == 4
+        
         Xtr = Xtr.reshape((-1, self.num_frames, 7*7*512))
         print('Model is Training...')
-        print(Xtr.shape)
+        # print('Xtrain shape:' Xtr.shape)
+        
         hist = self.model.fit(Xtr, ytr, epochs=epochs,
                              batch_size=bsize, validation_split=split_ratio,
                              verbose=verbose)
@@ -94,6 +136,9 @@ class video_classification(object):
         '''
         ypred = self.model.predict(Xte)
         ypred = np.argmax(ypred, axis = 1)
+        
+        assert len(ypred) == len(yte)
+        
         acc = np.mean(ypred == yte)
         print('Video Classification Accuracy: {0}'.format(acc))
 
