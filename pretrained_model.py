@@ -109,6 +109,10 @@ class video_classification(object):
     
     
     def load_features_update(self, Xind, yind):
+        '''
+        Xind: video index array
+        yind: labels array
+        '''
         num_videos = len(Xind)
         all_data = np.zeros((num_videos, 10, 7, 7, 512)) 
         frame_path = os.getcwd() + '/datasets/frames'
@@ -164,12 +168,6 @@ class video_classification(object):
         p.join()
 
         return resized_img
-
-    def split_train_test(self):
-        '''
-        split features and true labels into training sets and test sets
-        '''
-        data = load_features
 
     def train(self, Xtr, ytr, lr = 1e-3, reg = 0.01, lr_decay = 1e-6, optimizer = 'Adam', \
               bsize = 32, epochs = 100, split_ratio = 0.2, verbose = 0):
