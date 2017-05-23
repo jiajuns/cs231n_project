@@ -202,7 +202,7 @@ class video_classification(object):
         fc3 = Dense(units = num_classes, kernel_regularizer=regularizers.l2(reg))(fc1)
         sf = Activation('softmax')(fc3)
         add_model = Model(inputs=x, outputs=sf)
-        sgd_m = optimizers.SGD(lr=lr, decay=1e-6, momentum=0.9, nesterov=True)
+        # sgd_m = optimizers.SGD(lr=lr, decay=1e-6, momentum=0.9, nesterov=True)
         add_model.compile(optimizer=optimizer,
                       loss='categorical_crossentropy',
                       metrics=['accuracy'])
