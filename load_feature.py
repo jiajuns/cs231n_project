@@ -15,16 +15,19 @@ from skimage import img_as_float
 from keras.applications.vgg16 import VGG16
 from keras.applications.vgg16 import preprocess_input
 
-def load_features(num_videos, num_frames, h, w, c, skip_num=0):
+def load_features(num_videos, num_frames, video_idx, labels, size = (224, 224, 3), skip_num=0):
     '''
     Concanate video frames over short clip period
     frame_dir: frames folder directory
     num_videos: how many videos needed
+    size: size tuple
+    skip_num: which video id to skip ???
     '''
     batch_size = 64
     model = vgg_16_pretrained()
-
-    labels = np.load(os.getcwd() + '/datasets/category.npy')
+    h, w, c = size
+    
+    # labels = np.load(os.getcwd() + '/datasets/category.npy')
     curr = os.getcwd()
     cache_path = os.path.join(curr, 'datasets', 'cache',
                               'num_videos{0}_skipnum{1}_num_frame{2}.npz'.format(num_videos, skip_num, num_frames))
@@ -32,16 +35,17 @@ def load_features(num_videos, num_frames, h, w, c, skip_num=0):
     # initialize cache dir
     if not os.path.exists(os.path.join(curr, 'datasets', 'cache')):
         os.makedirs(os.path.join(curr, 'datasets', 'cache'))
-
+    
+    # check existed cache path
     if os.path.isfile(cache_path):
         print('find matched cache file {}'.format(cache_path))
         cache_data = np.load(cache_path)
         return cache_data['Xtrain'], cache_data['ytrain']
 
     video_info_list = []
-    for i in range(skip_num, num_videos+skip_num):
-        video_path = os.path.join(curr, 'datasets', 'processed', 'processed_{}.mp4'.format(labels[i, 0]))
-        video_info_list.append((video_path, labels[i, 1], num_frames, h, w))
+    for i, vid in enumerate(video_idx):
+        video_path = os.path.join(curr, 'datasets', 'processed', 'processed_video{}.mp4'.format(vid))
+        video_info_list.append((video_path, labels[i], num_frames, h, w))
 
     p = mp.Pool(mp.cpu_count())
     print('processing videos...')
@@ -130,6 +134,9 @@ def resize_method(im, h, w):
 
 if __name__ == '__main__':
     # testing purpose
-    Xtrain, ytrain = load_features(num_videos=2, num_frames=11, h=224, w=224, c=3)
+    Xtrain_idx = np.load(os.getcwd() + '/datasets/x_train_ind_above400.npy')
+    labels = np.load(os.getcwd() + '/datasets/y_train_mapped_above400.npy')
+    size = (224, 224, 3)
+    Xtrain, ytrain = load_features(num_videos=2, num_frames=11, video_idx = Xtrain_idx, labels = labels, size = size)
     print(Xtrain.shape)
     print(ytrain.shape)
