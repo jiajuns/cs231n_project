@@ -48,19 +48,6 @@ class video_classification(object):
 
     def build_model(self, cell_num = 512, dropout_rate=0.3, reg=0.01):
         '''
-        LSTM model
-        LSTM(return all state) + LSTM(return all state) + LSTM(last state) + fully-connected + fully_connected -> softmax crossentropy error
-        '''
-        print('building model...')
-        # self.model = Sequential()
-        # self.model.add(LSTM(512, return_sequences=True, input_shape=(self.num_frames, 7*7*512)))
-        # self.model.add(LSTM(512, return_sequences=True, dropout=self.dropout_rate))
-        # self.model.add(LSTM(256, return_sequences=False, dropout=self.dropout_rate))
-        # self.model.add(Dense(128, kernel_regularizer=regularizers.l2(self.reg)))
-        # self.model.add(Dense(self.num_classes, kernel_regularizer=regularizers.l2(self.reg), activation='softmax'))
-        # self.model.compile(optimizer=self.optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
-        
-        '''
         -- cell_num: how many cells in every LSTM layer
         -- dropout rate: dropout probability for dropout and recurrent dropout
         -- reg: regularization for linear
@@ -91,6 +78,7 @@ class video_classification(object):
         3D tensor with shape `(batch_size, timesteps, input_dim)
         (Optional) 2D tensors with shape `(batch_size, output_dim)
         '''
+        print('building model...')
         self.model = Sequential()
         self.model.add(LSTM(cell_num, return_sequences=True, input_shape=(self.num_frames, 7*7*512)))
         self.model.add(LSTM(cell_num, return_sequences=True, recurrent_dropout=dropout_rate, dropout = dropout_rate))
@@ -116,9 +104,6 @@ class video_classification(object):
         # num_classes = len(np.unique(ytr))
         # to one-hot dimension
         ytr = to_categorical(ytr, num_classes = self.num_classes)
-        
-        # check Xtrain shape dimension
-        # assert len(Xtr.shape) == 4
         
         Xtr = Xtr.reshape((-1, self.num_frames, 7*7*512))
         print('Model is Training...')

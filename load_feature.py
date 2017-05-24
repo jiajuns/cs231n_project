@@ -15,7 +15,7 @@ from skimage import img_as_float
 from keras.applications.vgg16 import VGG16
 from keras.applications.vgg16 import preprocess_input
 
-def load_features(num_videos, num_frames, video_idx, labels, size = (224, 224, 3), skip_num=0):
+def load_features(num_frames, video_idx, labels, size = (224, 224, 3)):
     '''
     Concanate video frames over short clip period
     frame_dir: frames folder directory
@@ -30,7 +30,7 @@ def load_features(num_videos, num_frames, video_idx, labels, size = (224, 224, 3
     # labels = np.load(os.getcwd() + '/datasets/category.npy')
     curr = os.getcwd()
     cache_path = os.path.join(curr, 'datasets', 'cache',
-                              'num_videos{0}_skipnum{1}_num_frame{2}.npz'.format(num_videos, skip_num, num_frames))
+                              'num_frame{0}.npz'.format(num_frames))
 
     # initialize cache dir
     if not os.path.exists(os.path.join(curr, 'datasets', 'cache')):
@@ -50,7 +50,7 @@ def load_features(num_videos, num_frames, video_idx, labels, size = (224, 224, 3
     p = mp.Pool(mp.cpu_count())
     print('processing videos...')
 
-    Xtrain = np.zeros((num_videos, num_frames, 7, 7, 512))
+    Xtrain = np.zeros((len(video_info_list), num_frames, 7, 7, 512))
     ytrain = []
     temp_frames_collection = []
     for i, frames in enumerate(p.imap(process_video, video_info_list)):
@@ -59,7 +59,7 @@ def load_features(num_videos, num_frames, video_idx, labels, size = (224, 224, 3
 
         # process when accumulate 10 batches
         if (i+1) % (1 * batch_size) == 0:
-            print('process {0}/{1}'.format(i+1, num_videos))
+            print('process {0}/{1}'.format(i+1, len(video_info_list)))
             frames = np.concatenate(temp_frames_collection, axis=0)
             frames = frames.reshape((-1, h, w, c))
             temp_Xtrain = model.predict(frames)
@@ -137,6 +137,6 @@ if __name__ == '__main__':
     Xtrain_idx = np.load(os.getcwd() + '/datasets/x_train_ind_above400.npy')
     labels = np.load(os.getcwd() + '/datasets/y_train_mapped_above400.npy')
     size = (224, 224, 3)
-    Xtrain, ytrain = load_features(num_videos=2, num_frames=11, video_idx = Xtrain_idx, labels = labels, size = size)
+    Xtrain, ytrain = load_features(num_frames=10, video_idx = Xtrain_idx, labels = labels, size = size)
     print(Xtrain.shape)
     print(ytrain.shape)
