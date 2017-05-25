@@ -29,6 +29,7 @@ from PIL import Image
 import numpy as np
 
 import logging
+import collections
 
 log_dir = os.path.join(os.getcwd(), 'log', 'log.txt')
 logging.basicConfig(filename=log_dir, level=logging.INFO)
@@ -206,3 +207,25 @@ class Download_Video(object):
         # save category
         output_y_dir = self.curr + '/datasets/category.npy'
         np.save(output_y_dir, np.array(list(output) + list(previous_output)))
+
+    def build_id_caption_dict(self):
+        path = self.train_path
+        with open(path) as f:
+            train = json.load(f)  # keys() -> [u'info', u'videos', u'sentences']
+            f.close()
+
+        dictionary = collections.defaultdict(list)
+
+        count = 0
+        for s in train['sentences']: # keys() -> [u'caption', u'video_id', u'sen_id']
+          count += 1
+          dictionary[s['video_id']].append(s['caption'])
+
+        with open('id_caption_dict.pickle', 'wb') as handle:
+            pickle.dump(dictionary, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+        with open('id_caption_dict.pickle', 'rb') as handle:
+            b = pickle.load(handle)
+        print len(b.keys())
+
