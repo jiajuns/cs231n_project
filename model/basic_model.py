@@ -1,6 +1,9 @@
 from __future__ import print_function
 
 import tensorflow as tf
+from tqdm import tqdm
+
+from util import minibatches
 
 class Model(object):
     """Abstracts a Tensorflow graph for a learning task.
@@ -106,19 +109,31 @@ class Model(object):
         self.train_op = self.add_training_op(self.loss)
 
 
-
 class sequence_2_sequence_LSTM(Model):
 
-    def __init__(self, embeddings, video_caption, flags):
+    def __init__(self, embeddings, flags):
         self.pretrained_embeddings = embeddings
-        self.caption_placeholder = video_caption
+        # self.caption_placeholder = video_caption
         self.input_size = flags.input_size
         self.batch_size = flags.batch_size
         self.num_frames = flags.num_frames
         self.max_sentence_length = flags.max_sentence_length
+        self.word_vector_size = flags.word_vector_size
+        self.n_epochs = flags.n_epochs
 
         # ==== set up placeholder tokens ========
-        self.frames_placeholder = tf.placeholder(tf.float32, shape=(None, self.num_frames, self.input_size))
+        self.frames_placeholder = tf.placeholder(tf.float32, shape=(-1, self.num_frames + self.max_sentence_length, self.input_size))
+        self.caption_placeholder = tf.placeholder(tf.int32, shape=(-1, self.max_sentence_length, self.word_vector_size))
+
+    def create_feed_dict(self, input_frames, input_caption=None):
+        feed = {
+            self.frames_placeholder: input_frames
+        }
+        if  input_caption is not None:
+            feed[self.caption_placeholder] = input_caption
+
+        return feed    
+
 
     def add_embedding_op(self):
         """
@@ -153,11 +168,34 @@ class sequence_2_sequence_LSTM(Model):
 
     def add_loss_op(self, word_vecs, caption_embeddings):
         with tf.variable_scope("loss"):
-            loss = tf.losses.mean_squared_error(caption_embeddings, word_vecs)
+            self.loss = tf.losses.mean_squared_error(caption_embeddings, word_vecs)
 
 
-    def add_training_op(self, loss):
+    def add_training_op(self):
+        optimizer = tf.train.AdamOptimizer(self.learning_rate)
+        self.updates = optimizer.minimize(self.loss)
 
-        optimizer = tf.
+    def train_on_batch(self, input_frames, input_caption):
+        feed = self.create_feed_dict(input_frames=input_frames, labels_batch=input_caption)
+        loss, _ = sess.run([self.loss, self.updates], feed_dict=feed)
+        return loss
+
+    def run_epoch(self, sess, train_data):
+        losses = []
+        for i, batch in tqdm(enumerate(minibatches(train_data, self.config.batch_size))):
+            loss = self.train_on_batch(sess, *batch)
+            losses.append(loss)
+        return losses
+    
+    def train(self, sess, train_data):
+        losses = []
+        for epoch in range(self.n_epochs):
+            # logger.info("Epoch %d out of %d", epoch + 1, self.config.n_epochs)
+            loss = self.run_epoch(sess, train_data)
+            losses.append(loss)
+        return losses
+
+    def test(self):
+        pass
 
 
