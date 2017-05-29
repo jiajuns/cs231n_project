@@ -20,6 +20,7 @@ from collections import Counter
 from datetime import datetime
 import pickle
 import matplotlib.pyplot as plt 
+import json 
 
 def dataLoader(url, filename, path, text_dir):
     '''
@@ -168,7 +169,6 @@ def build_glove_dict(glove_dir, path):
         print('glove pickle already exists')
 
 def plot_word_distribution(caption_dir):
-
     try:
         with open(caption_dir, 'rb') as handle:
             id2caption = pickle.load(handle)
@@ -177,7 +177,7 @@ def plot_word_distribution(caption_dir):
     
     caption_len = []
     for key, value in id2caption.items():
-        max_len = max(len(i) for i in value)
+        max_len = max(len(i.split(" ")) for i in value)
         caption_len.append(max_len)
 
     len_dic = Counter(caption_len)
@@ -185,10 +185,10 @@ def plot_word_distribution(caption_dir):
     len_count = list(len_dic.values())
     plt.bar(length, len_count, align='center',color='blue', alpha=0.5)
     plt.grid()
-    plt.xlabel('Caption max length in every video', fontsize = 13)
+    plt.xlabel('Caption max word length in every video', fontsize = 13)
     plt.ylabel('Length count', fontsize = 13)
     plt.title('Caption length distribution', fontsize = 15)
-    plt.save(os.getcwd() + '/output/Caption_len_distribution.png')
+    plt.savefig(os.getcwd() + '/output/Caption_len_distribution.png')
     plt.show()
 
 
@@ -203,7 +203,6 @@ if __name__ == '__main__':
     json_path = os.path.join(dataset_path, 'train_2017/videodatainfo_2017.json')
     caption_path = os.path.join(dataset_path, 'id_caption_dict.pickle')
 
-    # function
     build_id_caption_dict(json_path, caption_path)
     dataLoader(glove_url, glove_filename, dataset_path, glove_text_dir)
     build_glove_dict(glove_text_dir, dataset_path)
