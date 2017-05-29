@@ -5,7 +5,7 @@ import pickle
 import os 
 
 
-def minibatch(input_frames, captions, batch_size):
+def minibatches(input_frames, captions, batch_size):
     '''
     Input: 
     - input_frames: (np.array) (sample_size, frame_num, 7, 7, 512)
@@ -22,37 +22,12 @@ def minibatch(input_frames, captions, batch_size):
     input_frames = input_frames.reshape((-1, frame_num, oh*ow*of))
     N = len(captions)
     random_index = np.random.choice(N, batch_size, replace = False)
-    video_ind = [total_captions[i][1] for i in random_index]
+    # video_ind = [captions[i][0] for i in random_index]
+    video_ind = range(100)
     batch_input_frames = input_frames[video_ind]
+    batch_input_captions = [captions[i][1] for i in random_index]
 
     return (batch_input_frames, batch_input_captions)
-
-def index_word_dict(vocDir):
-    '''
-    Input: 
-    - vocDir (str) vocabulary pickle directory
-
-    Output:
-    - dict (dictionary) word to index and index to word
-    '''
-    try:
-
-
-def index2Word(wordls, vocabulary):
-    '''
-    Input: 
-    - wordls: (list) a list of word 
-    - vocabulary: (pickle file)
-
-    Index to Word 
-
-    Output:
-    - indexls: (list) indice for word list
-    '''
-    try: 
-        voc = pickle.dump()
-    l = len(vocabulary)
-    dic = {word: index for word, index in zip(voc.keys(), range(l))}
 
 
 def build_word_to_index_dict():
@@ -101,3 +76,15 @@ def build_caption_data():
     
     with open(dataPath+'video_caption_pairLs.pickle', 'wb') as handle:
         pickle.dump(caption_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+if __name__ == '__main__':
+    curPath = os.getcwd()
+    dataPath = curPath + "/datasets/train_2017/"
+    with open(dataPath+'video_caption_pairLs.pickle', 'rb') as handle:
+        captions = pickle.load(handle)
+
+    print('Total number of captions: ', len(captions))
+    input_frames = np.random.randn(100, 15, 7, 7, 512)
+    batch_f, batch_c = minibatches(input_frames, captions, 64)
+    print('batch caption: ', batch_c[0])
