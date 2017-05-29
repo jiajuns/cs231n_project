@@ -55,9 +55,49 @@ def index2Word(wordls, vocabulary):
     dic = {word: index for word, index in zip(voc.keys(), range(l))}
 
 
-def word2Index(wordls, vocabulary):
-
-
+def build_word_to_index_dict():
+    curPath = os.getcwd()
+    dataPath = curPath + "/datasets/train_2017/"
+    
+    w2v = pickle.load(open(dataPath+"word2Vector.pickle", "rb"))
+    id_cap_dict = pickle.load(open(dataPath+"id_caption_dict.pickle", "rb"))
+    
+    w2v_keys = list(w2v.keys())
+    w2v_keys_sorted = sorted(w2v_keys)
+    
+    w2ind_dict = {}
+    ind2w_dict = {}
+    
+    for ind, word in enumerate(w2v_keys_sorted):
+        w2ind_dict[word] = ind
+        ind2w_dict[ind] = word
+    
+    # check
+    print("the index of bardot:  " + str(w2ind_dict['bardot']))
+    print("the word of index 1573:  " + str(ind2w_dict[1573]))
+    
+    
+    # store
+    with open(dataPath+'word_to_index.pickle', 'wb') as handle:
+        pickle.dump(w2ind_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    
+    with open(dataPath+'index_to_word.pickle', 'wb') as handle:
+        pickle.dump(ind2w_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    
 
 def build_caption_data():
-    pass
+    curPath = os.getcwd()
+    dataPath = curPath + "/datasets/train_2017/"
+    
+    w2ind = pickle.load(open(dataPath+"word_to_index.pickle", "rb"))
+    id_cap_dict = pickle.load(open(dataPath+"id_caption_dict.pickle", "rb"))
+
+    caption_data = []
+    for video_id, captionLs in id_cap_dict.items():
+        video_id = video_id[5:]
+        for caption in captionLs:
+            video_caption_pair = tuple([int(video_id), caption])
+            caption_data.append(video_caption_pair)
+    
+    with open(dataPath+'video_caption_pairLs.pickle', 'wb') as handle:
+        pickle.dump(caption_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
