@@ -5,7 +5,7 @@ import pickle
 import os 
 
 
-def minibatch(input_frames, captions, batch_size):
+def minibatches(input_frames, captions, batch_size):
     '''
     Input: 
     - input_frames: (np.array) (sample_size, frame_num, 7, 7, 512)
@@ -22,8 +22,10 @@ def minibatch(input_frames, captions, batch_size):
     input_frames = input_frames.reshape((-1, frame_num, oh*ow*of))
     N = len(captions)
     random_index = np.random.choice(N, batch_size, replace = False)
-    video_ind = [total_captions[i][1] for i in random_index]
+    # video_ind = list(set([captions[i][0] for i in random_index]))
+    video_ind = range(100)
     batch_input_frames = input_frames[video_ind]
+    batch_input_captions = [captions[i][1] for i in random_index]
 
     return (batch_input_frames, batch_input_captions)
 
@@ -109,4 +111,20 @@ def check_caption_data(caption_id):
 if __name__ == "__main__":
     #build_word_to_index_dict()
     #build_caption_data(20)
-    check_caption_data(50)
+    curPath = os.getcwd()
+    dataPath = curPath + "/datasets/train_2017/"
+    captions = pickle.load(open(dataPath+"video_caption_pairLs.pickle", "rb"))
+
+    input_frames = np.random.randn(100, 15, 7, 7, 512)
+
+    batch_i, batch_c = minibatches(input_frames, captions, 64)
+
+    print('batch_c: ', batch_c[0])
+
+    ind2w = pickle.load(open(dataPath+"index_to_word.pickle", "rb"))
+
+    words = []
+    for i in batch_c[0]:
+        w = ind2w[i]
+        words.append(w)
+    print('captions: ', ' '.join(i for i in words))
