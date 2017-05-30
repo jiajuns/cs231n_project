@@ -49,6 +49,7 @@ def build_word_to_index_dict():
         ind2w_dict[ind] = word
 
     ind2w_dict[None] = "<pad>"
+
     # check
     print("the index of bardot:  " + str(w2ind_dict['bardot']))
     print("the word of index 1573:  " + str(ind2w_dict[1573]))
@@ -115,23 +116,25 @@ if __name__ == "__main__":
 
     build_word_to_index_dict()
     w2ind = pickle.load(open(dataPath+"word2index.pickle", "rb"))
-    build_caption_data(5)
+    build_caption_data(4)
     # check_caption_data(4000)
 
 
 
     captions = pickle.load(open(dataPath+"id_captionInd_pairs.pickle", "rb"))
 
-    input_frames = np.random.randn(100, 15, 7, 7, 512)
-
-    batch_i, batch_c = minibatches(input_frames, captions, 64)
-
-    print('batch_c: ', batch_c[0])
-
-    ind2w = pickle.load(open(dataPath+"index2word.pickle", "rb"))
-
-    words = []
-    for i in batch_c[0]:
-        w = ind2w[i]
-        words.append(w)
-    print('captions: ', ' '.join(i for i in words))
+    for key,values in captions:
+        print(key, values)
+    # input_frames = np.random.randn(100, 15, 7, 7, 512)
+    #
+    # batch_i, batch_c = minibatches(input_frames, captions, 64)
+    #
+    # print('batch_c: ', batch_c[0])
+    #
+    # ind2w = pickle.load(open(dataPath+"index2word.pickle", "rb"))
+    #
+    # words = []
+    # for i in batch_c[0]:
+    #     w = ind2w[i]
+    #     words.append(w)
+    # print('captions: ', ' '.join(i for i in words))
