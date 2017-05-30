@@ -33,7 +33,7 @@ def minibatches(input_frames, captions, batch_size):
 
 def build_word_to_index_dict():
     curPath = os.getcwd()
-    dataPath = curPath + "/datasets/train_2017/"
+    dataPath = curPath + "/datasets/"
     
     w2v = pickle.load(open(dataPath+"word2Vector.pickle", "rb"))
     id_cap_dict = pickle.load(open(dataPath+"id_caption_dict.pickle", "rb"))
@@ -48,22 +48,23 @@ def build_word_to_index_dict():
         w2ind_dict[word] = ind
         ind2w_dict[ind] = word
     
+    ind2w_dict[None] = "<pad>"
     # check
     print("the index of bardot:  " + str(w2ind_dict['bardot']))
     print("the word of index 1573:  " + str(ind2w_dict[1573]))
     
     
     # store
-    with open(dataPath+'word_to_index.pickle', 'wb') as handle:
+    with open(dataPath+'word2index.pickle', 'wb') as handle:
         pickle.dump(w2ind_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
     
-    with open(dataPath+'index_to_word.pickle', 'wb') as handle:
+    with open(dataPath+'index2word.pickle', 'wb') as handle:
         pickle.dump(ind2w_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
     
 def caption_to_ind(caption_split, w2ind_dict, maxLen = 20):
     res = []
     for i, word in enumerate(caption_split):
-        wordInd = w2ind_dict.get(word)
+        wordInd = w2ind_dict.get(word, w2ind_dict["<unk>"])
         res.append(wordInd)
     
     n = len(res)
@@ -74,8 +75,8 @@ def caption_to_ind(caption_split, w2ind_dict, maxLen = 20):
         
 def build_caption_data(maxLen = 20):
     curPath = os.getcwd()
-    dataPath = curPath + "/datasets/train_2017/"
-    w2ind = pickle.load(open(dataPath+"word_to_index.pickle", "rb"))
+    dataPath = curPath + "/datasets/"
+    w2ind = pickle.load(open(dataPath+"word2index.pickle", "rb"))
     id_cap_dict = pickle.load(open(dataPath+"id_caption_dict.pickle", "rb"))
 
     
@@ -84,7 +85,7 @@ def build_caption_data(maxLen = 20):
         video_id = video_id[5:]
         
         for caption in captionLs:
-            caption_split = caption.split()
+            caption_split = ["<START>"] + caption.split()
             
             if len(caption_split) > maxLen: # only take captions within maxLen
                 break
@@ -93,15 +94,15 @@ def build_caption_data(maxLen = 20):
             video_caption_pair = tuple([int(video_id), captionInd])
             caption_data.append(video_caption_pair)
             
-    with open(dataPath+'video_caption_pairLs.pickle', 'wb') as handle:
+    with open(dataPath+'id_captionInd_pairs.pickle', 'wb') as handle:
         pickle.dump(caption_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
         
         
 def check_caption_data(caption_id):
     curPath = os.getcwd()
-    dataPath = curPath + "/datasets/train_2017/"
-    caption_data = pickle.load(open(dataPath+"video_caption_pairLs.pickle", "rb"))
-    ind2w = pickle.load(open(dataPath+"index_to_word.pickle", "rb"))
+    dataPath = curPath + "/datasets/"
+    caption_data = pickle.load(open(dataPath+"id_captionInd_pairs.pickle", "rb"))
+    ind2w = pickle.load(open(dataPath+"index2word.pickle", "rb"))
     
     print((caption_data[caption_id]))
     for ind in caption_data[caption_id][1]:
@@ -109,11 +110,17 @@ def check_caption_data(caption_id):
         print (ind2w[ind])
 
 if __name__ == "__main__":
-    #build_word_to_index_dict()
-    #build_caption_data(20)
     curPath = os.getcwd()
-    dataPath = curPath + "/datasets/train_2017/"
-    captions = pickle.load(open(dataPath+"video_caption_pairLs.pickle", "rb"))
+    dataPath = curPath + "/datasets/"
+    
+    # build_word_to_index_dict()
+    # w2ind = pickle.load(open(dataPath+"word2index.pickle", "rb"))
+    # build_caption_data(20)
+    # check_caption_data(4000)
+
+
+    
+    captions = pickle.load(open(dataPath+"id_captionInd_pairs.pickle", "rb"))
 
     input_frames = np.random.randn(100, 15, 7, 7, 512)
 
@@ -121,7 +128,7 @@ if __name__ == "__main__":
 
     print('batch_c: ', batch_c[0])
 
-    ind2w = pickle.load(open(dataPath+"index_to_word.pickle", "rb"))
+    ind2w = pickle.load(open(dataPath+"index2word.pickle", "rb"))
 
     words = []
     for i in batch_c[0]:
