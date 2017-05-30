@@ -47,13 +47,8 @@ def build_word_to_index_dict():
     for ind, word in enumerate(w2v_keys_sorted):
         w2ind_dict[word] = ind
         ind2w_dict[ind] = word
-
     ind2w_dict[None] = "<pad>"
-
-    # check
-    print("the index of bardot:  " + str(w2ind_dict['bardot']))
-    print("the word of index 1573:  " + str(ind2w_dict[1573]))
-
+    w2ind_dict["<pad>"] = None
 
     # store
     with open(dataPath+'word2index.pickle', 'wb') as handle:
@@ -71,6 +66,8 @@ def caption_to_ind(caption_split, w2ind_dict, maxLen = 20):
         # temp code for test
         if len(res) >= 4:
             return res
+
+
 
     n = len(res)
     for j in range(n, maxLen, 1):
@@ -118,7 +115,7 @@ if __name__ == "__main__":
     curPath = os.getcwd()
     dataPath = curPath + "/datasets/"
     # build_word_to_index_dict()
-    build_caption_data(4)
+    # build_caption_data(4)
     # check_caption_data(4000)
 
     ind2w = pickle.load(open(dataPath+"index2word.pickle", "rb"))
