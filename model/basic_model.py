@@ -127,12 +127,15 @@ class sequence_2_sequence_LSTM(Model):
 
     def create_feed_dict(self, input_frames, input_caption=None):
         feed = {
-            self.frames_placeholder: input_frames
+            self.frames_placeholder: input_frames,
         }
         if  input_caption is not None:
             feed[self.caption_placeholder] = input_caption
-
-        return feed    
+            feed[self.dropout_placeholder] = self.dropout_rate
+        else:
+            feed[self.dropout_placeholder] = 1
+            
+        return feed
 
 
     def add_embedding_op(self):
@@ -150,39 +153,32 @@ class sequence_2_sequence_LSTM(Model):
         """
 
         with tf.variable_scope("LSTM_seq2seq"):
-            # define
-            lstm = tf.contrib.rnn.BasicLSTMCell(self.input_size)
-            state = tf.zeros([self.batch_size, lstm.state_size])
-            for i in range(self.num_frames):
-                # The value of state is updated after processing each batch of words.
-                output, state = lstm(self.frames_placeholder[:, i], state)
-            final_output = output
+            encoder_output, encoder_state = encoder(input_batch=self.frames_placeholder, 
+                                                    hidden_size=self.hidden_size, 
+                                                    dropout=self.dropout_placeholder)
+            caption_embeddings = self.add_embedding_op()
+            predict_word_vecs = decoder(caption_embeddings, ...)
 
-            word_vec_list = []
-            # decoder
-            for i in range(self.max_sentence_length):
-                word_vec, state = lstm(self.frames_placeholder[:, i+self.num_frames], state)
-                word_vec_list.append(word_vec)
-            word_vecs = tf.stack(word_vec_list)
+            self.predict = word_vecs
             return word_vecs
 
     def add_loss_op(self, word_vecs, caption_embeddings):
         with tf.variable_scope("loss"):
             self.loss = tf.losses.mean_squared_error(caption_embeddings, word_vecs)
 
-
     def add_training_op(self):
         optimizer = tf.train.AdamOptimizer(self.learning_rate)
         self.updates = optimizer.minimize(self.loss)
 
-    def train_on_batch(self, input_frames, input_caption):
+    def train_on_batch(self, sess, input_frames, input_caption):
         feed = self.create_feed_dict(input_frames=input_frames, labels_batch=input_caption)
         loss, _ = sess.run([self.loss, self.updates], feed_dict=feed)
         return loss
 
     def run_epoch(self, sess, train_data):
         losses = []
-        for i, batch in tqdm(enumerate(minibatches(train_data, self.config.batch_size))):
+        input_frames, captions = train_data
+        for i, batch in tqdm(enumerate(minibatches(input_frames, captions, self.batch_size))):
             loss = self.train_on_batch(sess, *batch)
             losses.append(loss)
         return losses
@@ -195,7 +191,38 @@ class sequence_2_sequence_LSTM(Model):
             losses.append(loss)
         return losses
 
-    def test(self):
-        pass
+    def predict_on_batch(self, sess, input_frames):
+        feed = self.create_feed_dict(input_frames, None)
+        outputs = sess.run([self.predict], feed_dict=feed)
 
+        return outputs
+
+
+def encoder(input_batch, hidden_size, dropout):
+    with tf.variable_scope('encoder') as scope:
+        lstm_en_cell = tf.nn.rnn_cell.DropoutWrapper(tf.nn.rnn_cell.BasicLSTMCell(hidden_size, scope=scope), output_keep_prob=dropout)
+        outputs, state = tf.nn.dynamic_rnn(lstm_en_cell, input=input_batch)
+    return outputs, state
+
+def decoder(encoder_state, input_caption, word_vector_size, hidden_size, max_sentence_length, dropout, train_or_predict='train'):
+    with tf.variable_scope('decoder') as scope:
+        lstm_de_cell = tf.nn.rnn_cell.DropoutWrapper(tf.nn.rnn_cell.BasicLSTMCell(hidden_size, scope=scope), output_keep_prob=dropout)
+        word_vec_list = []
+        state = encoder_state #(N hidden_size)
+        if train_or_predict == 'train':
+            for i in range(max_sentence_length):
+                true_word = tf.gather_nd(input_caption, tf.stack((tf.range(batch_size), i, tf.range(word_vector_size)), axis = 1))
+                output_vector, state = lstm_de_cell(true_word, state)
+                predict_word = tf.layers.dense(output_vector, units=word_vector_size, reuse=True)
+                word_vec_list.append(predict_word)
+        elif train_or_predict == 'test': 
+            for i in range(max_sentence_length):
+                if i == 0:
+                    predict_word = '<START>'
+                output_vector, state = lstm_de_cell(predict_word, state)
+                predict_word = tf.layers.dense(output_vector, units=word_vector_size, reuse=True)
+                word_vec_list.append(predict_word)
+
+        word_vecs = tf.stack(word_vec_list)
+        return word_vecs
 
