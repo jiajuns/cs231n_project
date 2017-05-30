@@ -97,6 +97,10 @@ def dataMapping(caption_dir, glove_dir, save_path):
             if word not in mapping:
                 mapping[word] = word2vector[word]
 
+    # <start>, <end>, <unk>
+    mapping['<START>'] = [0.0] * len(word2vector[word])
+    mapping['<unk>'] = word2vector['<unk>']
+
     print('mapping length: {}'.format(len(mapping)))
     print('Dumpping mapping pickle file...')
     with open(os.path.join(save_path, 'word2Vector.pickle'), 'wb') as handle:
@@ -141,7 +145,8 @@ def build_glove_dict(glove_dir, path):
     path: (str) save path 
     '''
     glove_dic = collections.defaultdict(list)
-    if not os.path.exists(glove_dir):
+    storage_path = os.path.join(path, 'glove_dic.pickle')
+    if not os.path.exists(storage_path):
         try: 
             tic = datetime.now()
             with open(glove_dir) as f:
@@ -159,7 +164,7 @@ def build_glove_dict(glove_dir, path):
             print('Word length: {}'.format(len(glove_dic)))
             print('Time for building glove map: {}'.format(toc-tic))
             print('Dumpping pickle file...')
-            with open(os.path.join(path, 'glove_dic.pickle'), 'wb') as handle:
+            with open(storage_path, 'wb') as handle:
                 pickle.dump(glove_dic, handle, protocol=pickle.HIGHEST_PROTOCOL)
             print('Finishing dumpping!')
 
@@ -193,11 +198,11 @@ def plot_word_distribution(caption_dir):
 
 
 if __name__ == '__main__':
-    glove_url = 'http://nlp.stanford.edu/data/wordvecs/glove.twitter.27B.zip'
-    glove_filename = "glove.twitter.27B.zip"
+    glove_url = 'http://nlp.stanford.edu/data/wordvecs/glove.6B.zip'
+    glove_filename = "glove.6B.zip"
     curr_path = os.getcwd()
     dataset_path = curr_path + '/datasets'
-    glove_text_dir = os.path.join(dataset_path, 'glove.twitter.27B.25d.txt')
+    glove_text_dir = os.path.join(dataset_path, 'glove.6B.50d.txt')
     caption_dir = os.path.join(dataset_path, 'id_caption_dict.pickle')
     glove_dir = os.path.join(dataset_path, 'glove_dic.pickle')
     json_path = os.path.join(dataset_path, 'train_2017/videodatainfo_2017.json')
