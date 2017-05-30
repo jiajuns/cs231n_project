@@ -5,7 +5,7 @@ import pickle
 import os 
 
 
-def minibatches(input_frames, captions, batch_size):
+def minibatches(input_frames, captions, batch_size, max_len):
     '''
     Input: 
     - input_frames: (np.array) (sample_size, frame_num, 7, 7, 512)
@@ -17,16 +17,20 @@ def minibatches(input_frames, captions, batch_size):
     Output:
     - batch: (tuple) (batch_input_frames, batch_input_captions)
     '''
-    np.random.seed(231)
-    _, frame_num, oh, ow, of = input_frames.shape
-    input_frames = input_frames.reshape((-1, frame_num, oh*ow*of))
+    _, frame_num, hwf = input_frames.shape
+    input_frames = input_frames.reshape((-1, frame_num, hwf))
     N = len(captions)
     random_index = np.random.choice(N, batch_size, replace = False)
     # video_ind = list(set([captions[i][0] for i in random_index]))
     video_ind = range(100)
     batch_input_frames = input_frames[video_ind]
-    batch_input_captions = [captions[i][1] for i in random_index]
-
+    print('max len: ', max_len)
+    batch_input_captions = np.zeros((len(video_ind), max_len))
+    # batch_input_captions = [captions[i][1] for i in random_index]
+    count = 0
+    for i in random_index:
+        batch_input_captions[count] = captions[i][1]
+        count += 1
     return (batch_input_frames, batch_input_captions)
 
 
