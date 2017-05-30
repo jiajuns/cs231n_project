@@ -132,7 +132,7 @@ def resize_method(im, h, w):
     im_arr = preprocess_input(im_arr)
     return im_arr
 
-def load_captions():
+# def load_captions():
     
 
 if __name__ == '__main__':

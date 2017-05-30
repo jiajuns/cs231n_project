@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import tensorflow as tf
 from tqdm import tqdm
+import numpy as np
 
 from util import minibatches
 
@@ -165,54 +166,43 @@ class sequence_2_sequence_LSTM(Model):
                                         word_vector_size=self.word_vector_size, 
                                         hidden_size=self.hidden_size, 
                                         max_sentence_length=self.max_sentence_length, 
-                                        dropout=self.dropout_rate)
-            return predict
+                                       dropout=self.dropout_rate)
+            self.predict = predict
+            return self.predict
 
     def add_loss_op(self, word_vecs):
         with tf.variable_scope("loss"):
             caption_embeddings = self.add_embedding_op()
-            self.caption_embeddings = caption_embeddings
+            # self.caption_embeddings = caption_embeddings
             print('caption embedding shape: ', caption_embeddings.get_shape())
             print('word vecs shape: ', word_vecs.get_shape())
-            loss = tf.losses.mean_squared_error(caption_embeddings, word_vecs)
-            self.word_vecs = word_vecs
-        return loss
+            loss_val = tf.losses.mean_squared_error(caption_embeddings, word_vecs)
+            # self.word_vecs = word_vecs
+        return loss_val
 
-    def add_training_op(self, loss):
+    def add_training_op(self, loss_val):
         optimizer = tf.train.AdamOptimizer(self.learning_rate)
-        self.updates = optimizer.minimize(loss)
+        self.updates = optimizer.minimize(loss_val)
 
     def train_on_batch(self, sess, input_frames, input_caption):
         feed = self.create_feed_dict(input_frames=input_frames, input_caption=input_caption)
-        # loss, _ = sess.run([self.loss, self.train_op], feed_dict=feed)
-        true = sess.run([self.caption_embeddings], feed_dict = feed)
-        print('True embedding: ', true)
-        # print('predict:', predict)
-        raise
-        return loss
+        loss, _, predict= sess.run([self.loss, self.updates, self.predict], feed_dict=feed)
+        return loss, predict
 
     def run_epoch(self, sess, train_data):
-        losses = []
-        input_frames, captions = train_data
-        for i in tqdm(range(self.n_epochs)):
-            
-            # check batch
-            batch = minibatches(input_frames, captions, self.batch_size, self.max_sentence_length)
-            # input_frames, captions = batch
-            # print('Input frames shape: ', input_frames.shape)
-            # print('Captions len: ', captions.shape)
-            # raise
-            loss = self.train_on_batch(sess, *batch)
-            losses.append(loss)
-        return losses
+        input_frames, captions = train_data         
+        # check batch
+        batch = minibatches(input_frames, captions, self.batch_size, self.max_sentence_length)
+        loss, predict = self.train_on_batch(sess, *batch)
+        return loss, predict
     
     def train(self, sess, train_data):
         losses = []
-        for epoch in range(self.n_epochs):
+        for epoch in tqdm(range(self.n_epochs)):
             # logger.info("Epoch %d out of %d", epoch + 1, self.config.n_epochs)
-            loss = self.run_epoch(sess, train_data)
+            loss, predict = self.run_epoch(sess, train_data)
             losses.append(loss)
-        return losses
+        return losses, predict
 
     def predict_on_batch(self, sess, input_frames):
         feed = self.create_feed_dict(input_frames, None)

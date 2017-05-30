@@ -7,7 +7,7 @@ import os
 
 def minibatches(input_frames, captions, batch_size, max_len):
     '''
-    Input:
+    Input Args:
     - input_frames: (np.array) (sample_size, frame_num, 7, 7, 512)
     - captions: (list of tuple) [(video_index, caption)]
     - batch_size: (int) how big the batch is
@@ -21,10 +21,7 @@ def minibatches(input_frames, captions, batch_size, max_len):
     input_frames = input_frames.reshape((-1, frame_num, hwf))
     N = len(captions)
     random_index = np.random.choice(N, batch_size, replace = False)
-    # video_ind = list(set([captions[i][0] for i in random_index]))
-    video_ind = range(100)
     batch_input_frames = input_frames[video_ind]
-    print('max len: ', max_len)
     batch_input_captions = np.zeros((len(video_ind), max_len))
     # batch_input_captions = [captions[i][1] for i in random_index]
     count = 0
@@ -106,31 +103,64 @@ def build_caption_data(maxLen = 20):
     with open(dataPath+'id_captionInd_pairs.pickle', 'wb') as handle:
         pickle.dump(caption_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+def word_embedding_array(word_dict, dim, word2Index):
+    '''
+    Input Args:
+    word_dict: (dict) key: word (str) value: vector (list)
+    dim: (int) word vector dimension
+    word2Index: (dict) key: word (str) value: index (int) word to index mapping
+    
+    Output:
+    word_embedding: (np.array) shape (V, M)
+    V is the size of vocabulary
+    M is the dimension of word vector
+    '''
+    word_embedding = np.zeros((len(word_dict), dim))
+    for word, w_vector in word_dict.items():
+         if len(w_vector) != 0:
+            word_index = word2Index[word]
+            word_embedding[word_index] = w_vector
+    return word_embedding.astype(np.float32)
 
-def check_caption_data(caption_id):
-    curPath = os.getcwd()
-    dataPath = curPath + "/datasets/"
-    caption_data = pickle.load(open(dataPath+"id_captionInd_pairs.pickle", "rb"))
-    ind2w = pickle.load(open(dataPath+"index2word.pickle", "rb"))
-
-    print((caption_data[caption_id]))
-    for ind in caption_data[caption_id][1]:
-        if ind==None:continue
-        print (ind2w[ind])
+def load_caption_data(sample_size):
+    '''
+    Input Args:
+    sample_size: (int) how many samples loaded to train
+    
+    Output:
+    captions: (list of tuple) captions data, [(video_id, captions (list))]
+    input_frames: (np.array) shape (video_training_sample, 15 frames, 7, 7, 512)
+    word_dict: (dict) key: word (str) value: vector (list)
+    word2Index: (dict) key: word (str) value: index (int) word to index mapping
+    index2Word: (dict) key: index (int) value: word (str) index to word mapping
+    '''
+    captions_train = pickle.load(open(dataPath+"id_captionInd_train.pickle", "rb"))
+    captions_test = pickle.load(open(dataPath+"id_captionInd_test.pickle", "rb"))
+    input_frames_train = np.load(dataPath + 'Xtrain_all_15frames.npy')[:sample_size]
+    input_frames_train = input_frames_train.reshape((-1, 15, 7*7*512))
+    input_frames_test = np.load(dataPath + 'Xtest_all_15frames.npy')
+    input_frames_test = input_frames_train.reshape((-1, 15, 7*7*512))
+    word_dict = pickle.load(open(dataPath + "word2Vector.pickle", "rb"))
+    word2Index = pickle.load(open(dataPath + 'word2index.pickle', 'rb'))
+    index2Word = pickle.load(open(dataPath + 'index2word.pickle', 'rb'))
+    
+    return input_frames_train, input_frames_test, captions_train, \
+            captions_test, word_dict, word2Index, index2Word
 
 if __name__ == "__main__":
     curPath = os.getcwd()
     dataPath = curPath + "/datasets/"
     # build_word_to_index_dict()
-    build_caption_data(4)
-    # check_caption_data(4000)
+    #build_caption_data(4)
+    #check_caption_data(8831)
 
     ind2w = pickle.load(open(dataPath+"index2word.pickle", "rb"))
     w2ind = pickle.load(open(dataPath+"word2index.pickle", "rb"))
     captions = pickle.load(open(dataPath+"id_captionInd_pairs.pickle", "rb"))
 
     for key,values in captions:
-        print(key,  values, ":     "," ".join([ind2w[i] for i in values ]))
+        if key == 8831:
+            print( values, ":     "," ".join([ind2w[i] for i in values ]))
 
 
     # input_frames = np.random.randn(100, 15, 7, 7, 512)
