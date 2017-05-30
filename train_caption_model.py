@@ -27,11 +27,12 @@ tf.app.flags.DEFINE_float("learning_rate", 0.001, "Base Learning rate.")
 
 tf.app.flags.DEFINE_float("input_size", 7*7*512, "input size for each frame")
 tf.app.flags.DEFINE_integer("batch_size", 64, "how many videos put per run")
-tf.app.flags.DEFINE_integer("max_sentence_length", 200, "maximum captioning sentence length")
+tf.app.flags.DEFINE_integer("max_sentence_length", 4, "maximum captioning sentence length")
 tf.app.flags.DEFINE_integer("word_vector_size", 50, "word embedding dimension default is 25 for twitter glove")
 tf.app.flags.DEFINE_integer("n_epochs", 10, "number of epoch to run")
 tf.app.flags.DEFINE_integer("num_frames", 15, "number of frames per video")
 tf.app.flags.DEFINE_integer("hidden_size", 100, "output size of LSTM encoder and decoder")
+tf.app.flags.DEFINE_float("dropout_rate", 0.5, "dropout probability for LSTM layers")
 FLAGS = tf.app.flags.FLAGS        
 
 
@@ -46,7 +47,8 @@ if __name__ == '__main__':
     dataPath = curPath + "/datasets/"
 
     # only pick first 100 for debugging purpose
-    captions = pickle.load(open(dataPath+"video_caption_pairLs.pickle", "rb"))[:100]
+    captions = pickle.load(open(dataPath+"id_captionInd_pairs.pickle", "rb"))[:100]
+    print('captions shape: ', len(captions[0][1]))
     input_frames = np.random.randn(100, 15, 7*7*512)
     word_dict = pickle.load(open(dataPath + "word2Vector.pickle", "rb"))
     word_2_index = pickle.load(open(dataPath + 'word2index.pickle', 'rb'))
