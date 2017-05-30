@@ -123,7 +123,7 @@ if __name__ == "__main__":
     with open(dataPath+'id_captionInd_test.pickle', 'wb') as handle:
         pickle.dump(caption_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-
+    
 
     # for key,values in captions:
     #     print(key,  values, ":     "," ".join([ind2w[i] for i in values ]))
