@@ -125,11 +125,11 @@ class sequence_2_sequence_LSTM(Model):
         self.n_epochs = flags.n_epochs
         self.hidden_size = flags.hidden_size
         self.learning_rate = flags.learning_rate
+        self.dropout_rate = flags.dropout_rate
 
         # ==== set up placeholder tokens ========
         self.frames_placeholder = tf.placeholder(tf.float32, shape=(None, self.num_frames, self.input_size))
         self.caption_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_sentence_length))
-        self.dropout_placeholder = tf.placeholder(tf.float32, shape=(None))
 
     def create_feed_dict(self, input_frames, input_caption=None):
         feed = {
@@ -137,9 +137,6 @@ class sequence_2_sequence_LSTM(Model):
         }
         if  input_caption is not None:
             feed[self.caption_placeholder] = input_caption
-            feed[self.dropout_placeholder] = self.dropout_rate
-        else:
-            feed[self.dropout_placeholder] = 1
             
         return feed
 
@@ -160,7 +157,7 @@ class sequence_2_sequence_LSTM(Model):
         with tf.variable_scope("LSTM_seq2seq"):
             encoder_output, encoder_state = encoder(input_batch=self.frames_placeholder, 
                                                     hidden_size=self.hidden_size, 
-                                                    dropout=self.dropout_placeholder)
+                                                    dropout=self.dropout_rate)
 
             caption_embeddings = self.add_embedding_op()
             predict = decoder(encoder_state=encoder_state, 
@@ -168,31 +165,43 @@ class sequence_2_sequence_LSTM(Model):
                                         word_vector_size=self.word_vector_size, 
                                         hidden_size=self.hidden_size, 
                                         max_sentence_length=self.max_sentence_length, 
-                                        dropout=self.dropout_placeholder)
+                                        dropout=self.dropout_rate)
             return predict
 
     def add_loss_op(self, word_vecs):
         with tf.variable_scope("loss"):
             caption_embeddings = self.add_embedding_op()
-            print(caption_embeddings.get_shape())
-            print(word_vecs.get_shape())
+            self.caption_embeddings = caption_embeddings
+            print('caption embedding shape: ', caption_embeddings.get_shape())
+            print('word vecs shape: ', word_vecs.get_shape())
             loss = tf.losses.mean_squared_error(caption_embeddings, word_vecs)
+            self.word_vecs = word_vecs
         return loss
 
     def add_training_op(self, loss):
         optimizer = tf.train.AdamOptimizer(self.learning_rate)
-        updates = optimizer.minimize(loss)
-        return updates
+        self.updates = optimizer.minimize(loss)
 
     def train_on_batch(self, sess, input_frames, input_caption):
-        feed = self.create_feed_dict(input_frames=input_frames, labels_batch=input_caption)
-        loss, _ = sess.run([self.loss, self.updates], feed_dict=feed)
+        feed = self.create_feed_dict(input_frames=input_frames, input_caption=input_caption)
+        # loss, _ = sess.run([self.loss, self.train_op], feed_dict=feed)
+        true = sess.run([self.caption_embeddings], feed_dict = feed)
+        print('True embedding: ', true)
+        # print('predict:', predict)
+        raise
         return loss
 
     def run_epoch(self, sess, train_data):
         losses = []
         input_frames, captions = train_data
-        for i, batch in tqdm(enumerate(minibatches(input_frames, captions, self.batch_size))):
+        for i in tqdm(range(self.n_epochs)):
+            
+            # check batch
+            batch = minibatches(input_frames, captions, self.batch_size, self.max_sentence_length)
+            # input_frames, captions = batch
+            # print('Input frames shape: ', input_frames.shape)
+            # print('Captions len: ', captions.shape)
+            # raise
             loss = self.train_on_batch(sess, *batch)
             losses.append(loss)
         return losses
@@ -230,6 +239,7 @@ def decoder(encoder_state, input_caption, word_vector_size, hidden_size, max_sen
                 if i == 1: scope.reuse_variables() # after the first step reuse varibale
                 output_vector, state = lstm_de_cell(true_word, state)
                 predict_word = tf.layers.dense(output_vector, units=word_vector_size, name='hidden_to_word')
+                word_vec_list.append(predict_word)
         # elif train_or_predict == 'test': 
         #     for i in range(max_sentence_length):
         #         if i == 0:
@@ -239,6 +249,5 @@ def decoder(encoder_state, input_caption, word_vector_size, hidden_size, max_sen
         #         word_vec_list.append(predict_word)
         word_vecs = tf.stack(word_vec_list)
         word_vecs = tf.transpose(word_vecs, perm=[1, 0, 2])
-        print(word_vecs.get_shape())
         return word_vecs
 
