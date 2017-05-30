@@ -68,6 +68,10 @@ def caption_to_ind(caption_split, w2ind_dict, maxLen = 20):
         wordInd = w2ind_dict.get(word, w2ind_dict["<unk>"])
         res.append(wordInd)
 
+        # temp code for test
+        if len(res) >= 4:
+            return res
+
     n = len(res)
     for j in range(n, maxLen, 1):
         res.append(None)
@@ -88,8 +92,8 @@ def build_caption_data(maxLen = 20):
         for caption in captionLs:
             caption_split = ["<START>"] + caption.split()
 
-            if len(caption_split) > maxLen: # only take captions within maxLen
-                break
+            # if len(caption_split) > maxLen: # only take captions within maxLen
+            #     break
 
             captionInd = list(caption_to_ind(caption_split, w2ind, maxLen))
             video_caption_pair = tuple([int(video_id), captionInd])
@@ -113,18 +117,18 @@ def check_caption_data(caption_id):
 if __name__ == "__main__":
     curPath = os.getcwd()
     dataPath = curPath + "/datasets/"
-
-    build_word_to_index_dict()
-    w2ind = pickle.load(open(dataPath+"word2index.pickle", "rb"))
+    # build_word_to_index_dict()
     build_caption_data(4)
     # check_caption_data(4000)
 
-
-
+    ind2w = pickle.load(open(dataPath+"index2word.pickle", "rb"))
+    w2ind = pickle.load(open(dataPath+"word2index.pickle", "rb"))
     captions = pickle.load(open(dataPath+"id_captionInd_pairs.pickle", "rb"))
 
     for key,values in captions:
-        print(key, values)
+        print(key,  values, ":     "," ".join([ind2w[i] for i in values ]))
+
+
     # input_frames = np.random.randn(100, 15, 7, 7, 512)
     #
     # batch_i, batch_c = minibatches(input_frames, captions, 64)
