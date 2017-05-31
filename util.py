@@ -24,7 +24,6 @@ def minibatches(input_frames, captions, batch_size, max_len):
     input_frames = input_frames.reshape((-1, frame_num, hwc))
     N = len(input_frames)
     pieceNum = N // batch_size
-    print('pieceNum: ',pieceNum)
     for _ in range(pieceNum):
         random_index = np.random.choice(N, batch_size, replace = False)
         video_ind = np.array(random_index)
@@ -37,6 +36,9 @@ def minibatches(input_frames, captions, batch_size, max_len):
             batch_input_captions[count] = video_caps[cap_id]
             count += 1
         yield (batch_input_frames, batch_input_captions)
+
+def train_validation_split():
+    pass
 
 class ind_word_convertor():
     '''

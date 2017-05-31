@@ -165,7 +165,6 @@ class sequence_2_sequence_LSTM(Model):
         with tf.variable_scope("LSTM_seq2seq"):
             encoder_output, encoder_state = encoder(input_batch=self.frames_placeholder,
                                                     hidden_size=self.hidden_size,
-                                                    num_frames=self.num_frames,
                                                     dropout=self.dropout_rate)
 
             caption_embeddings = tf.nn.embedding_lookup(self.embedding, self.caption_placeholder)
@@ -229,33 +228,38 @@ class sequence_2_sequence_LSTM(Model):
         The controller for each epoch training.
         This function will call training_on_batch for training and test for checking validation loss
         """
+        train_losses = []
         input_frames, captions = train_data
         for batch in minibatches(input_frames, captions, self.batch_size, self.max_sentence_length):
+            inp, cap = batch
             train_loss, _ = self.train_on_batch(sess, *batch)
-        dev_loss, _ = self.test(sess, valid_data)
-        return dev_loss
+            train_losses.append(train_loss)
+        avg_train_loss = sum(train_losses) / len(train_losses)
+        dev_loss = self.test(sess, valid_data)
+        return dev_loss, avg_train_loss
 
     def train(self, sess, train_data):
-        losses = []
+        val_losses = []
+        train_losses = []
         # train, validation = train_validation_split(train_data, split_rate=0.7)
         train, validation = train_data, train_data
         for epoch in tqdm(range(self.n_epochs)):
-            dev_loss, _ = self.run_epoch(sess, train, validation)
-            losses.append(dev_loss)
-        return losses
+            dev_loss, avg_train_loss = self.run_epoch(sess, train, validation)
+            val_losses.append(dev_loss)
+            train_losses.append(avg_train_loss)
+        return losses, train_losses
 
     # def predict_on_batch(self, sess, input_frames):
     #     feed = self.create_feed_dict(input_frames, None)
     #     outputs = sess.run([self.pred], feed_dict=feed)
     #     return outputs
 
-def encoder(input_batch, hidden_size, num_frames, dropout):
+def encoder(input_batch, hidden_size, dropout):
     with tf.variable_scope('encoder') as scope:
         lstm_en_cell = tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.BasicLSTMCell(hidden_size), output_keep_prob=dropout)
         outputs, state = tf.nn.dynamic_rnn(lstm_en_cell,
                                            inputs=input_batch,
                                            dtype=tf.float32,
-                                           sequence_length=num_frames,
                                            scope=scope)
     return outputs, state
 
@@ -268,10 +272,10 @@ def decoder(encoder_state, input_caption, word_vector_size, hidden_size, max_sen
 
         for i in range(max_sentence_length):
             if i == 0:
-                predict_word = tf.zeros([tf.shape(encoder_state)[0], word_vector_size], tf.float32)
+                predict_word = tf.zeros([tf.shape(input_caption)[0], word_vector_size], tf.float32)
             def f1(): return predict_word
             def f2(): return input_caption[:, i, :]
-            true_word = tf.cond(training == 0, lambda: f1(), lambda: f2())
+            true_word = tf.cond(training < 1, lambda: f1(), lambda: f2())
             if i == 1: scope.reuse_variables()
             output_vector, state = lstm_de_cell(true_word, state)
             predict_word = tf.layers.dense(output_vector, units=word_vector_size, name='hidden_to_word')
