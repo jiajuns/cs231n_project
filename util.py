@@ -127,7 +127,7 @@ def word_embedding_array(word_dict, dim, word2Index):
             word_embedding[word_index] = w_vector
     return word_embedding.astype(np.float32)
 
-def load_caption_data(sample_size):
+def load_caption_data(sample_size, dataPath):
     '''
     Input Args:
     sample_size: (int) how many samples loaded to train
@@ -149,8 +149,7 @@ def load_caption_data(sample_size):
     word2Index = pickle.load(open(dataPath + 'word2index.pickle', 'rb'))
     index2Word = pickle.load(open(dataPath + 'index2word.pickle', 'rb'))
     
-    return input_frames_train, input_frames_test, captions_train, \
-            captions_test, word_dict, word2Index, index2Word
+    return input_frames_train, input_frames_test, captions_train, captions_test, word_dict, word2Index, index2Word
 
 
 
