@@ -127,6 +127,7 @@ class sequence_2_sequence_LSTM(Model):
         self.hidden_size = flags.hidden_size
         self.learning_rate = flags.learning_rate
         self.dropout_rate = flags.dropout_rate
+        self.is_training = flags.is_training
 
         # ==== set up placeholder tokens ========
         self.frames_placeholder = tf.placeholder(tf.float32, shape=(None, self.num_frames, self.input_size))
@@ -166,7 +167,7 @@ class sequence_2_sequence_LSTM(Model):
                                         word_vector_size=self.word_vector_size, 
                                         hidden_size=self.hidden_size, 
                                         max_sentence_length=self.max_sentence_length, 
-                                       dropout=self.dropout_rate)
+                                       dropout=self.dropout_rate, train_or_predict = self.is_training)
             self.predict = predict
             return self.predict
 

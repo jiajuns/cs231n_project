@@ -128,7 +128,7 @@ def word_embedding_array(word_dict, dim, word2Index):
             word_embedding[word_index] = w_vector
     return word_embedding.astype(np.float32)
 
-def load_train_data(sample_size, dataPath):
+def load_caption_data(sample_size, dataPath, train = True):
     '''
     Input Args:
     sample_size: (int) how many samples loaded to train
@@ -140,15 +140,21 @@ def load_train_data(sample_size, dataPath):
     word2Index: (dict) key: word (str) value: index (int) word to index mapping
     index2Word: (dict) key: index (int) value: word (str) index to word mapping
     '''
-    captions_train = pickle.load(open(dataPath+"id_captionInd_train.pickle", "rb"))
-    input_frames_train = np.load(dataPath + 'Xtrain_all_15frames.npy')
-    input_frames_train = input_frames_train.reshape((-1, 15, 7, 7, 512))[:sample_size]
-    input_frames_train = input_frames_train.reshape((sample_size, 15, 7*7*512))
+    if train:
+        captions = pickle.load(open(dataPath+"id_captionInd_train.pickle", "rb"))
+        input_frames = np.load(dataPath + 'Xtrain_all_15frames.npy')
+        input_frames = input_frames.reshape((-1, 15, 7, 7, 512))[:sample_size]
+        input_frames= input_frames.reshape((sample_size, 15, 7*7*512))
+    else:
+        captions = pickle.load(open(dataPath+"id_captionInd_test.pickle", "rb"))
+        input_frames = np.load(dataPath + 'Xtest_all_15frames.npy')
+        input_frames = input_frames.reshape((-1, 15, 7, 7, 512))[:sample_size]
+        input_frames = input_frames.reshape((sample_size, 15, 7*7*512))
     word_dict = pickle.load(open(dataPath + "word2Vector.pickle", "rb"))
     word2Index = pickle.load(open(dataPath + 'word2index.pickle', 'rb'))
     index2Word = pickle.load(open(dataPath + 'index2word.pickle', 'rb'))
     
-    return input_frames_train, captions_train, word_dict, word2Index, index2Word
+    return input_frames, captions, word_dict, word2Index, index2Word
 
 
 
