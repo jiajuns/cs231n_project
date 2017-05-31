@@ -74,23 +74,25 @@ def build_word_to_index_dict(dataPath):
         pickle.dump(ind2w_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-def build_caption_data_dict(dataPath):
-    x_train_ind = np.load(dataPath+'x_train_ind_above400.npy')
-    x_test_ind = np.load(dataPath+'x_test_ind_above400.npy')
-    caption_data = cpation_data(dataPath, x_train_ind, 4)
-    with open(dataPath+'id_captionInd_train.pickle', 'wb') as handle:
-        pickle.dump(caption_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+def caption_to_ind(caption_split, w2ind_dict, maxLen = 20):
+    res = []
+    for i, word in enumerate(caption_split):
+        wordInd = w2ind_dict.get(word, w2ind_dict["<unk>"])
+        res.append(wordInd)
 
-    caption_data = cpation_data(dataPath, x_test_ind, 4)
-    with open(dataPath+'id_captionInd_test.pickle', 'wb') as handle:
-        pickle.dump(caption_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    # pad the rest length with <unk>
+    n = len(res)
+    for j in range(n, maxLen, 1):
+        res.append(w2ind_dict["<unk>"])
+    return res
 
 
-def cpation_data(dataPath, id_Ls, maxLen = 20):
+def caption_data(dataPath, id_Ls, maxLen = 20):
     w2ind = pickle.load(open(dataPath+"word2index.pickle", "rb"))
     id_cap_dict = pickle.load(open(dataPath+"id_caption_dict.pickle", "rb"))
 
-    caption_data = []
+    caption_data = {}
+    captions = []
     for count, video_id in enumerate(id_Ls):
         captionLs = id_cap_dict["video"+str(video_id)]
         for caption in captionLs:
@@ -100,10 +102,22 @@ def cpation_data(dataPath, id_Ls, maxLen = 20):
                 break
 
             captionInd = list(caption_to_ind(caption_split, w2ind, maxLen))
-            video_caption_pair = tuple([int(count), captionInd])
-            caption_data.append(video_caption_pair)
+            captions.append(captionInd)
+        caption_data[count] = list(captions)
     return caption_data
 
+
+def build_caption_data_dict(dataPath, maxLen = 20):
+    x_train_ind = np.load(dataPath+'x_train_ind_above400.npy')
+    x_test_ind = np.load(dataPath+'x_test_ind_above400.npy')
+    
+    captions = caption_data(dataPath, x_train_ind, maxLen)
+    with open(dataPath+'id_captionInd_train.pickle', 'wb') as handle:
+        pickle.dump(captions, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    captions = caption_data(dataPath, x_test_ind, maxLen)
+    with open(dataPath+'id_captionInd_test.pickle', 'wb') as handle:
+        pickle.dump(captions, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 def word_embedding_array(word_dict, dim, word2Index):
     '''
@@ -154,15 +168,18 @@ def load_caption_data(sample_size):
 if __name__ == "__main__":
     dataPath = os.getcwd() + "/datasets/"
 
-    # build dictionary pickles
+    ### build dictionary pickles ###
     # build_word_to_index_dict(dataPath)
-    # build_caption_data_dict(dataPath)
+    # build_caption_data_dict(dataPath, 20)
 
-    ind2w = pickle.load(open(dataPath+"index2word.pickle", "rb"))
-    w2ind = pickle.load(open(dataPath+"word2index.pickle", "rb"))
+    # ind2w = pickle.load(open(dataPath+"index2word.pickle", "rb"))
+    # w2ind = pickle.load(open(dataPath+"word2index.pickle", "rb"))
     caption_train = pickle.load(open(dataPath+"id_captionInd_train.pickle", "rb"))
     caption_test = pickle.load(open(dataPath+"id_captionInd_test.pickle", "rb"))
-
+    
+    print(len(caption_train[0]))
+    
+    
     # input_frames = np.random.randn(100, 15, 7, 7, 512)
     #
     # batch_i, batch_c = minibatches(input_frames, captions, 64)
