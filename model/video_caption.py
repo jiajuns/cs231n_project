@@ -117,7 +117,6 @@ class sequence_2_sequence_LSTM(Model):
 
     def __init__(self, embeddings, flags):
         self.pretrained_embeddings = embeddings
-        # self.caption_placeholder = video_caption
         self.input_size = flags.input_size
         self.batch_size = flags.batch_size
         self.num_frames = flags.num_frames
@@ -138,7 +137,7 @@ class sequence_2_sequence_LSTM(Model):
         }
         if  input_caption is not None:
             feed[self.caption_placeholder] = input_caption
-            
+
         return feed
 
 
@@ -159,8 +158,9 @@ class sequence_2_sequence_LSTM(Model):
         """ LSTM encoder and decoder layers
         """
         with tf.variable_scope("LSTM_seq2seq"):
-            encoder_output, encoder_state = encoder(input_batch=self.frames_placeholder, 
-                                                    hidden_size=self.hidden_size, 
+            encoder_output, encoder_state = encoder(input_batch=self.frames_placeholder,
+                                                    hidden_size=self.hidden_size,
+                                                    num_frames=self.num_frames,
                                                     dropout=self.dropout_rate)
 
             caption_embeddings = self.add_embedding_op()
@@ -168,13 +168,13 @@ class sequence_2_sequence_LSTM(Model):
                 is_training = False
             else:
                 is_training = True
-            predict = decoder(encoder_state=encoder_state, 
-                                        input_caption=caption_embeddings, 
-                                        word_vector_size=self.word_vector_size, 
-                                        hidden_size=self.hidden_size, 
-                                        max_sentence_length=self.max_sentence_length, 
+            predict = decoder(encoder_state=encoder_state,
+                                        input_caption=caption_embeddings,
+                                        word_vector_size=self.word_vector_size,
+                                        hidden_size=self.hidden_size,
+                                        max_sentence_length=self.max_sentence_length,
                                         dropout=self.dropout_rate, training = is_training)
-                                       
+
             self.predict = predict
             return self.predict
 
@@ -196,16 +196,15 @@ class sequence_2_sequence_LSTM(Model):
         return loss, predict
 
     def run_epoch(self, sess, train_data):
-        input_frames, captions = train_data         
+        input_frames, captions = train_data
         # check batch
         batch = minibatches(input_frames, captions, self.batch_size, self.max_sentence_length)
         loss, predict = self.train_on_batch(sess, *batch)
         return loss, predict
-    
+
     def train(self, sess, train_data):
         losses = []
         for epoch in tqdm(range(self.n_epochs)):
-            # logger.info("Epoch %d out of %d", epoch + 1, self.config.n_epochs)
             loss, predict = self.run_epoch(sess, train_data)
             losses.append(loss)
         return losses, predict
@@ -216,10 +215,14 @@ class sequence_2_sequence_LSTM(Model):
         return outputs
 
 
-def encoder(input_batch, hidden_size, dropout):
+def encoder(input_batch, hidden_size, num_frames, dropout):
     with tf.variable_scope('encoder') as scope:
         lstm_en_cell = tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.BasicLSTMCell(hidden_size), output_keep_prob=dropout)
-        outputs, state = tf.nn.dynamic_rnn(lstm_en_cell, inputs=input_batch, dtype=tf.float32)
+        outputs, state = tf.nn.dynamic_rnn(lstm_en_cell,
+                                           inputs=input_batch,
+                                           dtype=tf.float32,
+                                           sequence_length=num_frames,
+                                           scope=scope)
     return outputs, state
 
 def decoder(encoder_state, input_caption, word_vector_size, hidden_size, max_sentence_length, dropout, training = True):
@@ -227,15 +230,15 @@ def decoder(encoder_state, input_caption, word_vector_size, hidden_size, max_sen
         lstm_de_cell = tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.BasicLSTMCell(hidden_size), output_keep_prob=dropout)
         word_vec_list = []
         state = encoder_state #(N hidden_size)
-        
-        if train_or_predict == 'train':
+
+        if training is True:
             for i in range(max_sentence_length):
                 true_word = input_caption[:, i, :]
                 if i == 1: scope.reuse_variables() # after the first step reuse varibale
                 output_vector, state = lstm_de_cell(true_word, state)
                 predict_word = tf.layers.dense(output_vector, units=word_vector_size, name='hidden_to_word')
                 word_vec_list.append(predict_word)
-        elif train_or_predict == 'test': 
+        elif training is False:
             for i in range(max_sentence_length):
                 if i == 0:
                     predict_word = '<START>'
