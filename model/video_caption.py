@@ -174,7 +174,6 @@ class sequence_2_sequence_LSTM(Model):
                                         hidden_size=self.hidden_size,
                                         max_sentence_length=self.max_sentence_length,
                                         dropout=self.dropout_rate, training = is_training)
-
             self.predict = predict
             return self.predict
 
@@ -241,7 +240,7 @@ def decoder(encoder_state, input_caption, word_vector_size, hidden_size, max_sen
         elif training is False:
             for i in range(max_sentence_length):
                 if i == 0:
-                    predict_word = '<START>'
+                    predict_word = predict_word = tf.zeros([tf.shape(encoder_state)[0], word_vector_size], tf.float32)
                 output_vector, state = lstm_de_cell(predict_word, state)
                 predict_word = tf.layers.dense(output_vector, units=word_vector_size, name='hidden_to_word')
                 word_vec_list.append(predict_word)
