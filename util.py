@@ -128,7 +128,7 @@ def word_embedding_array(word_dict, dim, word2Index):
             word_embedding[word_index] = w_vector
     return word_embedding.astype(np.float32)
 
-def load_train_data(sample_size, dataPath):
+def load_caption_data(sample_size, dataPath, train = True):
     '''
     Input Args:
     sample_size: (int) how many samples loaded to train
@@ -140,40 +140,18 @@ def load_train_data(sample_size, dataPath):
     word2Index: (dict) key: word (str) value: index (int) word to index mapping
     index2Word: (dict) key: index (int) value: word (str) index to word mapping
     '''
-    captions_train = pickle.load(open(dataPath+"id_captionInd_train.pickle", "rb"))
-    input_frames_train = np.load(dataPath + 'Xtrain_all_15frames.npy')
-    input_frames_train = input_frames_train.reshape((-1, 15, 7, 7, 512))[:sample_size]
-    input_frames_train = input_frames_train.reshape((sample_size, 15, 7*7*512))
-    word_dict = pickle.load(open(dataPath + "word2Vector.pickle", "rb"))
-    word2Index = pickle.load(open(dataPath + 'word2index.pickle', 'rb'))
-    index2Word = pickle.load(open(dataPath + 'index2word.pickle', 'rb'))
-    
-    return input_frames_train, captions_train, word_dict, word2Index, index2Word
-
-
-
-if __name__ == "__main__":
-    dataPath = os.getcwd() + "/datasets/"
-
-    # build dictionary pickles
-    # build_word_to_index_dict(dataPath)
-    # build_caption_data_dict(dataPath)
-
-    ind2w = pickle.load(open(dataPath+"index2word.pickle", "rb"))
-    w2ind = pickle.load(open(dataPath+"word2index.pickle", "rb"))
-    caption_train = pickle.load(open(dataPath+"id_captionInd_train.pickle", "rb"))
-    caption_test = pickle.load(open(dataPath+"id_captionInd_test.pickle", "rb"))
-
-    # input_frames = np.random.randn(100, 15, 7, 7, 512)
-    #
-    # batch_i, batch_c = minibatches(input_frames, captions, 64)
-    #
-    # print('batch_c: ', batch_c[0])
-    #
-    # ind2w = pickle.load(open(dataPath+"index2word.pickle", "rb"))
-    #
-    # words = []
-    # for i in batch_c[0]:
-    #     w = ind2w[i]
-    #     words.append(w)
-    # print('captions: ', ' '.join(i for i in words))
+    if train:
+        captions_train = pickle.load(open(dataPath+"id_captionInd_train.pickle", "rb"))
+        input_frames_train = np.load(dataPath + 'Xtrain_all_15frames.npy')
+        input_frames_train = input_frames_train.reshape((-1, 15, 7, 7, 512))[:sample_size]
+        input_frames_train = input_frames_train.reshape((sample_size, 15, 7*7*512))
+        word_dict = pickle.load(open(dataPath + "word2Vector.pickle", "rb"))
+        word2Index = pickle.load(open(dataPath + 'word2index.pickle', 'rb'))
+        index2Word = pickle.load(open(dataPath + 'index2word.pickle', 'rb'))
+        return input_frames_train, captions_train, word_dict, word2Index, index2Word
+    else:
+        captions_test = pickle.load(open(dataPath+"id_captionInd_test.pickle", "rb"))
+        input_frames_test = np.load(dataPath + 'Xtest_all_15frames.npy')
+        input_frames_test = input_frames_test.reshape((-1, 15, 7, 7, 512))[:sample_size]
+        input_frames_test = input_frames_test.reshape((sample_size, 15, 7*7*512))
+        return input_frames_test, captions_test
