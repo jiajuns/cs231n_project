@@ -149,7 +149,10 @@ class sequence_2_sequence_LSTM(Model):
         """
         with tf.variable_scope("embeddings"):
             vec_embeddings = tf.get_variable("embeddings", initializer=self.pretrained_embeddings, trainable=False, dtype=tf.float32)
-            caption_embeddings = tf.nn.embedding_lookup(vec_embeddings, self.caption_placeholder)
+            if self.caption_placeholder is not None:
+                caption_embeddings = tf.nn.embedding_lookup(vec_embeddings, self.caption_placeholder)
+            else:
+                caption_embeddings = None
         return caption_embeddings
 
     def add_prediction_op(self):
@@ -161,23 +164,25 @@ class sequence_2_sequence_LSTM(Model):
                                                     dropout=self.dropout_rate)
 
             caption_embeddings = self.add_embedding_op()
+            if caption_embeddings is None:
+                is_training = False
+            else:
+                is_training = True
             predict = decoder(encoder_state=encoder_state, 
                                         input_caption=caption_embeddings, 
                                         word_vector_size=self.word_vector_size, 
                                         hidden_size=self.hidden_size, 
                                         max_sentence_length=self.max_sentence_length, 
-                                       dropout=self.dropout_rate)
+                                       dropout=self.dropout_rate, training = is_training)
             self.predict = predict
             return self.predict
 
     def add_loss_op(self, word_vecs):
         with tf.variable_scope("loss"):
             caption_embeddings = self.add_embedding_op()
-            # self.caption_embeddings = caption_embeddings
             print('caption embedding shape: ', caption_embeddings.get_shape())
             print('word vecs shape: ', word_vecs.get_shape())
             loss_val = tf.losses.mean_squared_error(caption_embeddings, word_vecs)
-            # self.word_vecs = word_vecs
         return loss_val
 
     def add_training_op(self, loss_val):
@@ -213,11 +218,10 @@ class sequence_2_sequence_LSTM(Model):
 def encoder(input_batch, hidden_size, dropout):
     with tf.variable_scope('encoder') as scope:
         lstm_en_cell = tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.BasicLSTMCell(hidden_size), output_keep_prob=dropout)
-        print(input_batch.get_shape())
         outputs, state = tf.nn.dynamic_rnn(lstm_en_cell, inputs=input_batch, dtype=tf.float32)
     return outputs, state
 
-def decoder(encoder_state, input_caption, word_vector_size, hidden_size, max_sentence_length, dropout, train_or_predict='train'):
+def decoder(encoder_state, input_caption, word_vector_size, hidden_size, max_sentence_length, dropout, training = True):
     with tf.variable_scope('decoder') as scope:
         lstm_de_cell = tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.BasicLSTMCell(hidden_size), output_keep_prob=dropout)
         word_vec_list = []
@@ -230,13 +234,13 @@ def decoder(encoder_state, input_caption, word_vector_size, hidden_size, max_sen
                 output_vector, state = lstm_de_cell(true_word, state)
                 predict_word = tf.layers.dense(output_vector, units=word_vector_size, name='hidden_to_word')
                 word_vec_list.append(predict_word)
-        # elif train_or_predict == 'test': 
-        #     for i in range(max_sentence_length):
-        #         if i == 0:
-        #             predict_word = '<START>'
-        #         output_vector, state = lstm_de_cell(predict_word, state)
-        #         predict_word = tf.layers.dense(output_vector, units=word_vector_size, name='hidden_to_word')
-        #         word_vec_list.append(predict_word)
+        elif train_or_predict == 'test': 
+            for i in range(max_sentence_length):
+                if i == 0:
+                    predict_word = '<START>'
+                output_vector, state = lstm_de_cell(predict_word, state)
+                predict_word = tf.layers.dense(output_vector, units=word_vector_size, name='hidden_to_word')
+                word_vec_list.append(predict_word)
         word_vecs = tf.stack(word_vec_list)
         word_vecs = tf.transpose(word_vecs, perm=[1, 0, 2])
         return word_vecs
