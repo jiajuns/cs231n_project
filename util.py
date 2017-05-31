@@ -4,6 +4,8 @@ import numpy as np
 import pickle
 import os
 import random
+from builtins import range
+
 
 def minibatches(input_frames, captions, batch_size, max_len):
     '''
@@ -21,17 +23,20 @@ def minibatches(input_frames, captions, batch_size, max_len):
     _, frame_num, hwc = input_frames.shape
     input_frames = input_frames.reshape((-1, frame_num, hwc))
     N = len(input_frames)
-    random_index = np.random.choice(N, batch_size, replace = False)
-    video_ind = np.array(random_index)
-    batch_input_frames = input_frames[video_ind]
-    batch_input_captions = np.zeros((len(video_ind), max_len))
-    count = 0
-    for i in random_index:
-        video_caps = captions[i]
-        cap_id = random.choice(range(len(video_caps)))
-        batch_input_captions[count] = video_caps[cap_id]
-        count += 1
-    return (batch_input_frames, batch_input_captions)
+    pieceNum = N // batch_size
+    print('pieceNum: ',pieceNum)
+    for _ in range(pieceNum):
+        random_index = np.random.choice(N, batch_size, replace = False)
+        video_ind = np.array(random_index)
+        batch_input_frames = input_frames[video_ind]
+        batch_input_captions = np.zeros((len(video_ind), max_len))
+        count = 0
+        for i in random_index:
+            video_caps = captions[i]
+            cap_id = random.choice(range(len(video_caps)))
+            batch_input_captions[count] = video_caps[cap_id]
+            count += 1
+        yield (batch_input_frames, batch_input_captions)
 
 class ind_word_convertor():
     '''
