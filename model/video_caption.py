@@ -3,7 +3,7 @@ from __future__ import print_function
 import tensorflow as tf
 from tqdm import tqdm
 import numpy as np
-
+import matplotlib.pyplot as plt 
 from util import *
 
 class Model(object):
@@ -117,6 +117,26 @@ class Model(object):
 class sequence_2_sequence_LSTM(Model):
 
     def __init__(self, embeddings, flags):
+        '''
+        Input Args:
+
+        - embeddings: (np.array) shape (vocabulary size, word vector dimension)
+        - flags: () store a series of hyperparameters
+            -- input_size: (int) default pretrained VGG16 output 7*7*512
+            -- batch_size: (int) batch size 
+            -- num_frames: (int) frame number default is 15
+            -- max_sentence_length: (int) max word sentence default is 20 
+            -- word_vector_size: (int) depend on which vocabulary used 
+            -- n_epochs: (int) how many epoches to run 
+            -- hidden_size: (int) hidden state vector size 
+            -- learning_rate: (float) learning rate 
+
+        Placeholder variables:
+        - frames_placeholder: (train X) tensor with shape (sample_size, frame_num, input_size)
+        - caption_placeholder: (label Y) tensor with shape (sample_size, max_sentence_length)
+        - is_training_placeholder: (train mode) tensor int32 0 or 1
+        - dropout_placeholder: (dropout keep probability) tensor float32 or 1 for testing 
+        '''
         self.pretrained_embeddings = embeddings
         self.input_size = flags.input_size
         self.batch_size = flags.batch_size
@@ -126,7 +146,6 @@ class sequence_2_sequence_LSTM(Model):
         self.n_epochs = flags.n_epochs
         self.hidden_size = flags.hidden_size
         self.learning_rate = flags.learning_rate
-        self.dropout_rate = flags.dropout_rate
 
         # ==== set up placeholder tokens ========
         self.frames_placeholder = tf.placeholder(tf.float32, shape=(None, self.num_frames, self.input_size))
@@ -134,12 +153,12 @@ class sequence_2_sequence_LSTM(Model):
         self.is_training_placeholder = tf.placeholder(tf.int32, shape=[])
         self.dropout_placeholder = tf.placeholder(tf.float32, shape = [])
 
-    def create_feed_dict(self, input_frames, input_caption=None, is_training=True):
+    def create_feed_dict(self, input_frames, input_caption, is_training=True):
+
         feed = {
             self.frames_placeholder: input_frames,
+            self.caption_placeholder: input_caption
         }
-        if  input_caption is not None:
-            feed[self.caption_placeholder] = input_caption
 
         if is_training is True:
             feed[self.is_training_placeholder] = 1
@@ -183,13 +202,17 @@ class sequence_2_sequence_LSTM(Model):
     def add_loss_op(self, word_vecs):
         with tf.variable_scope("loss"):
             caption_embeddings = tf.nn.embedding_lookup(self.embedding, self.caption_placeholder)
-            print('caption embedding shape: ', caption_embeddings.get_shape())
-            print('word vecs shape: ', word_vecs.get_shape())
             loss_val = tf.losses.mean_squared_error(caption_embeddings, word_vecs)
         return loss_val
 
     def add_training_op(self, loss_val):
-        optimizer = tf.train.AdamOptimizer(self.learning_rate)
+
+        # learning rate decay 
+        # https://www.tensorflow.org/versions/r0.11/api_docs/python/train/decaying_the_learning_rate
+        starter_lr = self.learning_rate
+        lr = tf.train.exponential_decay(starter_lr, global_step = self.n_epochs,
+                                           decay_step = 10, decay_rate = 0.96, staircase=True)
+        optimizer = tf.train.AdamOptimizer(lr)
         self.updates = optimizer.minimize(loss_val)
 
     def train_on_batch(self, sess, input_frames, input_caption):
@@ -228,7 +251,7 @@ class sequence_2_sequence_LSTM(Model):
             valid_loss.append(loss)
         return np.mean(valid_loss)
 
-    def run_epoch(self, sess, train_data, valid_data):
+    def run_epoch(self, sess, train_data, valid_data, verbose):
         """
         The controller for each epoch training.
         This function will call training_on_batch for training and test for checking validation loss
@@ -239,25 +262,46 @@ class sequence_2_sequence_LSTM(Model):
             inp, cap = batch
             train_loss, _ = self.train_on_batch(sess, *batch)
             train_losses.append(train_loss)
+
+            # plot batch iteration vs loss figure
+            if verbose: plot_loss(train_losses)
+
         avg_train_loss = np.mean(train_losses)
         dev_loss = self.test(sess, valid_data)
         return dev_loss, avg_train_loss
 
-    def train(self, sess, train_data):
+    def train(self, sess, train_data, verbose = True):
+        '''
+        train mode
+        '''
         val_losses = []
         train_losses = []
         train, validation = train_test_split(train_data, train_test_ratio=0.8)
         # train, validation = train_data, train_data
         for epoch in tqdm(range(self.n_epochs)):
-            dev_loss, avg_train_loss = self.run_epoch(sess, train, validation)
+            dev_loss, avg_train_loss = self.run_epoch(sess, train, validation, verbose)
+
+            if verbose:
+                # print epoch results
+                print('Epoch {0}: train loss {1}, validation loss {2}'.format(epoch, \
+                        avg_train_loss, dev_loss))
+            
             val_losses.append(dev_loss)
             train_losses.append(avg_train_loss)
-        return val_losses, train_losses, self.train_pred
+        return val_losses, train_losses, self.train_pred, self.test_pred
 
     # def predict_on_batch(self, sess, input_frames):
     #     feed = self.create_feed_dict(input_frames, None)
     #     outputs = sess.run([self.pred], feed_dict=feed)
     #     return outputs
+
+def plot_loss(train_losses):
+    plt.plot(range(len(train_losses)), train_losses, 'b-')
+    plt.grid()
+    plt.xlabel('iteration', fontsize = 13)
+    plt.ylabel('Train loss', fontsize = 13)
+    plt.title('iteration vs loss', fontsize = 15)
+    plt.show()
 
 def encoder(input_batch, hidden_size, dropout):
     with tf.variable_scope('encoder') as scope:
