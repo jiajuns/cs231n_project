@@ -4,7 +4,7 @@ import tensorflow as tf
 from tqdm import tqdm
 import numpy as np
 
-from util import minibatches
+from util import *
 
 class Model(object):
     """Abstracts a Tensorflow graph for a learning task.
@@ -132,6 +132,7 @@ class sequence_2_sequence_LSTM(Model):
         self.frames_placeholder = tf.placeholder(tf.float32, shape=(None, self.num_frames, self.input_size))
         self.caption_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_sentence_length))
         self.is_training_placeholder = tf.placeholder(tf.int32, shape=[])
+        self.dropout_placeholder = tf.placeholder(tf.float32, shape = [])
 
     def create_feed_dict(self, input_frames, input_caption=None, is_training=True):
         feed = {
@@ -142,8 +143,10 @@ class sequence_2_sequence_LSTM(Model):
 
         if is_training is True:
             feed[self.is_training_placeholder] = 1
+            feed[self.dropout_placeholder] = 0.5
         else:
             feed[self.is_training_placeholder] = 0
+            feed[self.dropout_placeholder] = 1
 
         return feed
 
@@ -155,7 +158,7 @@ class sequence_2_sequence_LSTM(Model):
         with tf.variable_scope("embeddings"):
             vec_embeddings = tf.get_variable("embeddings",
                                              initializer=self.pretrained_embeddings,
-                                             trainable=False,
+                                             trainable=True,
                                              dtype=tf.float32)
         return vec_embeddings
 
@@ -173,7 +176,7 @@ class sequence_2_sequence_LSTM(Model):
                                         word_vector_size=self.word_vector_size,
                                         hidden_size=self.hidden_size,
                                         max_sentence_length=self.max_sentence_length,
-                                        dropout=self.dropout_rate,
+                                        dropout=self.dropout_placeholder,
                                         training = self.is_training_placeholder)
             return predict
 
@@ -198,6 +201,7 @@ class sequence_2_sequence_LSTM(Model):
                                      input_caption=input_caption,
                                      is_training=True)
         loss, _, predict= sess.run([self.loss, self.updates, self.pred], feed_dict=feed)
+        self.train_pred = predict
         return loss, predict
 
     def test_on_batch(self, sess, input_frames, input_caption):
@@ -209,6 +213,7 @@ class sequence_2_sequence_LSTM(Model):
                                      input_caption=input_caption,
                                      is_training=False)
         loss, predict = sess.run([self.loss, self.pred], feed_dict=feed)
+        self.test_pred = predict
         return loss, predict
 
     def test(self, sess, valid_data):
@@ -234,20 +239,20 @@ class sequence_2_sequence_LSTM(Model):
             inp, cap = batch
             train_loss, _ = self.train_on_batch(sess, *batch)
             train_losses.append(train_loss)
-        avg_train_loss = sum(train_losses) / len(train_losses)
+        avg_train_loss = np.mean(train_losses)
         dev_loss = self.test(sess, valid_data)
         return dev_loss, avg_train_loss
 
     def train(self, sess, train_data):
         val_losses = []
         train_losses = []
-        # train, validation = train_validation_split(train_data, split_rate=0.7)
-        train, validation = train_data, train_data
+        train, validation = train_test_split(train_data, train_test_ratio=0.8)
+        # train, validation = train_data, train_data
         for epoch in tqdm(range(self.n_epochs)):
             dev_loss, avg_train_loss = self.run_epoch(sess, train, validation)
             val_losses.append(dev_loss)
             train_losses.append(avg_train_loss)
-        return losses, train_losses
+        return val_losses, train_losses, self.train_pred
 
     # def predict_on_batch(self, sess, input_frames):
     #     feed = self.create_feed_dict(input_frames, None)

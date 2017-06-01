@@ -11,8 +11,9 @@ def minibatches(input_frames, captions, batch_size, max_len):
     '''
     Input Args:
     - input_frames: (np.array) (sample_size, frame_num, 7, 7, 512)
-    - captions: (list of tuple) [(video_index, caption)]
+    - captions: (dict) {video_id (int): [[captions (int) ]]}
     - batch_size: (int) how big the batch is
+    - max_len: (int) maximum sentence length
 
     Produce minibatch data
 
@@ -24,18 +25,15 @@ def minibatches(input_frames, captions, batch_size, max_len):
     input_frames = input_frames.reshape((-1, frame_num, hwc))
     N = len(input_frames)
     pieceNum = N // batch_size
-    print('pieceNum: ',pieceNum)
     for _ in range(pieceNum):
         random_index = np.random.choice(N, batch_size, replace = False)
         video_ind = np.array(random_index)
         batch_input_frames = input_frames[video_ind]
         batch_input_captions = np.zeros((len(video_ind), max_len))
-        count = 0
-        for i in random_index:
+        for count, i in enumerate(random_index):
             video_caps = captions[i]
             cap_id = random.choice(range(len(video_caps)))
             batch_input_captions[count] = video_caps[cap_id]
-            count += 1
         yield (batch_input_frames, batch_input_captions)
 
 class ind_word_convertor():
@@ -162,15 +160,37 @@ def load_caption_data(sample_size, dataPath, train = True):
         return input_frames_test, captions_test
 
 def train_test_split(data, train_test_ratio=0.8):
-    num_samples = data[0].shape[0]
+    '''
+    Input Args:
+    - data: (tuple) (input_frames, captions)
+        -- input_frames (np.array) (sample_size, frame_num, 7, 7, 512)
+        -- captions (dict) {video_id (int): [[captions (int)]]}
+    - train_test_ratio: (float) train test/val split ratio 
+
+    train test/validation data split 
+
+    Output:
+    train_data: (tuple) (input_frames_train, captions_train)
+    test_data: (tuple) (input_frames_test/val, captions_test/val)
+    '''
+    frames, captions = data 
+    num_samples = len(frames)
     num_train = int(num_samples * train_test_ratio)
-    indexes = list(range(num_samples))
+    indice = list(range(num_samples))
 
-    random.shuffle(indexes)
-    train_indexes = indexes[:num_train]
-    test_indexes = indexes[num_train:-1]
+    np.random.shuffle(indice)
+    train_indice = indice[:num_train]
+    test_indice = indice[num_train:]
 
-    train_data = (data[0][train_indexes], data[1][train_indexes])
-    test_data = (data[0][test_indexes], data[1][test_indexes])
+    train_frames, test_frames = frames[train_indice], frames[test_indice]
+    train_captions = {}
+    for idx, i in enumerate(train_indice):
+        train_captions[idx] = captions[i]
+    test_captions = {}
+    for idx, i in enumerate(test_indice):
+        test_captions[idx] = captions[i]
+
+    train_data = (train_frames, train_captions)
+    test_data = (test_frames, test_captions)
 
     return train_data, test_data
