@@ -120,7 +120,7 @@ def word_embedding_array(word_dict, dim, word2Index):
     word_dict: (dict) key: word (str) value: vector (list)
     dim: (int) word vector dimension
     word2Index: (dict) key: word (str) value: index (int) word to index mapping
-    
+
     Output:
     word_embedding: (np.array) shape (V, M)
     V is the size of vocabulary
@@ -137,7 +137,7 @@ def load_caption_data(sample_size, dataPath, train = True):
     '''
     Input Args:
     sample_size: (int) how many samples loaded to train
-    
+
     Output:
     captions: (list of tuple) captions data, [(video_id, captions (list))]
     input_frames: (np.array) shape (video_training_sample, 15 frames, 7, 7, 512)
@@ -160,3 +160,5 @@ def load_caption_data(sample_size, dataPath, train = True):
         input_frames_test = input_frames_test.reshape((-1, 15, 7, 7, 512))[:sample_size]
         input_frames_test = input_frames_test.reshape((sample_size, 15, 7*7*512))
         return input_frames_test, captions_test
+
+def train_test_split(data, split_ratio=0.2)
