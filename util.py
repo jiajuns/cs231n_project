@@ -24,6 +24,7 @@ def minibatches(input_frames, captions, batch_size, max_len):
     input_frames = input_frames.reshape((-1, frame_num, hwc))
     N = len(input_frames)
     pieceNum = N // batch_size
+    print('pieceNum: ',pieceNum)
     for _ in range(pieceNum):
         random_index = np.random.choice(N, batch_size, replace = False)
         video_ind = np.array(random_index)
@@ -36,9 +37,6 @@ def minibatches(input_frames, captions, batch_size, max_len):
             batch_input_captions[count] = video_caps[cap_id]
             count += 1
         yield (batch_input_frames, batch_input_captions)
-
-def train_validation_split():
-    pass
 
 class ind_word_convertor():
     '''
@@ -163,4 +161,16 @@ def load_caption_data(sample_size, dataPath, train = True):
         input_frames_test = input_frames_test.reshape((sample_size, 15, 7*7*512))
         return input_frames_test, captions_test
 
-def train_test_split(data, split_ratio=0.2)
+def train_test_split(data, train_test_ratio=0.8):
+    num_samples = data[0].shape[0]
+    num_train = int(num_samples * train_test_ratio)
+    indexes = list(range(num_samples))
+
+    random.shuffle(indexes)
+    train_indexes = indexes[:num_train]
+    test_indexes = indexes[num_train:-1]
+
+    train_data = (data[0][train_indexes], data[1][train_indexes])
+    test_data = (data[0][test_indexes], data[1][test_indexes])
+
+    return train_data, test_data
