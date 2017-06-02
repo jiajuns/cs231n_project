@@ -107,7 +107,7 @@ class Model(object):
         # self.add_placeholders()
         print('start building model ...')
         self.embedding = self.add_embedding_op()
-        self.pred, self.pred_index = self.add_prediction_op()
+        self.pred = self.add_prediction_op()
         self.loss = self.add_loss_op(self.pred)
         self.train_op = self.add_training_op(self.loss)
 
@@ -143,7 +143,7 @@ class sequence_2_sequence_LSTM(Model):
         self.num_frames = flags.num_frames
         self.max_sentence_length = flags.max_sentence_length
         self.word_vector_size = flags.word_vector_size
-        self.vocabulary_size = flags.vocabulary_size
+        self.voc_size = flags.voc_size
         self.n_epochs = flags.n_epochs
         self.hidden_size = flags.hidden_size
         self.learning_rate = flags.learning_rate
@@ -163,7 +163,7 @@ class sequence_2_sequence_LSTM(Model):
 
         if is_training is True:
             feed[self.is_training_placeholder] = 1
-            feed[self.dropout_placeholder] = 0.5
+            feed[self.dropout_placeholder] = 0.7
         else:
             feed[self.is_training_placeholder] = 0
             feed[self.dropout_placeholder] = 1
@@ -192,27 +192,42 @@ class sequence_2_sequence_LSTM(Model):
 
             caption_embeddings = tf.nn.embedding_lookup(self.embedding, self.caption_placeholder)
 
-            predict, pword_ls = decoder(encoder_state=encoder_state,
+            predict, word_ind = decoder(encoder_state=encoder_state,
                                         input_caption=caption_embeddings,
                                         embedding = self.embedding,
                                         word_vector_size = self.word_vector_size,
-                                        voca_size=self.vocabulary_size,
+                                        voc_size=self.voc_size,
                                         hidden_size=self.hidden_size,
                                         max_sentence_length=self.max_sentence_length,
                                         dropout=self.dropout_placeholder,
                                         training = self.is_training_placeholder)
+            self.word_ind = word_ind
+            return predict
 
-            return predict, pword_ls
-
-    def add_loss_op(self, word_vecs):
+    def add_loss_op(self, outputs):
         with tf.variable_scope("loss"):
             # caption_embeddings = tf.nn.embedding_lookup(self.embedding, self.caption_placeholder)
-            captions = tf.one_hot(self.caption_placeholder, self.vocabulary_size)
             # loss_val = tf.losses.mean_squared_error(caption_embeddings, word_vecs)
-            print('batch caption shape: ', captions.get_shape())
-            print('batch pred shape: ', word_vecs.get_shape())
-            loss_val = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels = captions, logits = word_vecs))
-            print('loss shape: ', loss_val.get_shape())
+
+            captions = self.caption_placeholder
+            captions = tf.cast(captions, tf.float32)
+            unk = tf.constant(266, dtype=tf.float32) # <unk> index mask <unk>
+            mask = tf.not_equal(captions, unk)
+            mask = tf.cast(mask, tf.float32)
+            
+            output_shape = tf.shape(outputs)
+            N, T, V = output_shape[0], output_shape[1], output_shape[2]
+            outputs_flat = tf.reshape(outputs, [N*T, V])
+            captions_flat = tf.cast(tf.reshape(captions, [N*T,]), tf.int32)
+            mask_flat = tf.reshape(mask, [N*T,])
+            
+            N_float = tf.cast(N, tf.float32)
+            outputs_flat = tf.cast(outputs_flat, tf.float32)
+            probs = tf.exp(outputs_flat - tf.reduce_max(outputs_flat, axis = 1, keep_dims = True))
+            probs = probs / tf.reduce_sum(probs, axis = 1, keep_dims = True)
+            correct_scores = tf.gather_nd(probs, tf.stack((tf.range(N*T), captions_flat), axis=1))
+            loss_val = -tf.reduce_sum(tf.log(correct_scores) * mask_flat) / N_float
+            
         return loss_val
 
     def add_training_op(self, loss_val):
@@ -233,9 +248,9 @@ class sequence_2_sequence_LSTM(Model):
         feed = self.create_feed_dict(input_frames=input_frames,
                                      input_caption=input_caption,
                                      is_training=True)
-        loss, _, predict, predict_index, embedding = sess.run([self.loss, self.updates, self.pred, self.pred_index,self.embedding], feed_dict=feed)
+        loss, _, predict_index = sess.run([self.loss, self.updates, self.word_ind], feed_dict=feed)
         self.train_pred = predict_index
-        return loss, predict, embedding
+        return loss
 
     def test_on_batch(self, sess, input_frames, input_caption):
         """
@@ -245,9 +260,9 @@ class sequence_2_sequence_LSTM(Model):
         feed = self.create_feed_dict(input_frames=input_frames,
                                      input_caption=input_caption,
                                      is_training=False)
-        loss, predict, predict_index = sess.run([self.loss, self.pred, self.pred_index], feed_dict=feed)
+        loss, predict_index = sess.run([self.loss, self.word_ind], feed_dict=feed)
         self.test_pred = predict_index
-        return loss, predict
+        return loss
 
     def test(self, sess, valid_data):
         """
@@ -257,7 +272,7 @@ class sequence_2_sequence_LSTM(Model):
         valid_loss = []
         input_frames, captions = valid_data
         for batch in minibatches(input_frames, captions, self.batch_size, self.max_sentence_length):
-            loss, _ = self.test_on_batch(sess, *batch)
+            loss = self.test_on_batch(sess, *batch)
             valid_loss.append(loss)
         return np.mean(valid_loss)
 
@@ -270,7 +285,7 @@ class sequence_2_sequence_LSTM(Model):
         input_frames, captions = train_data
         for batch in minibatches(input_frames, captions, self.batch_size, self.max_sentence_length):
             inp, cap = batch
-            train_loss, _, embedding = self.train_on_batch(sess, *batch)
+            train_loss = self.train_on_batch(sess, *batch)
             train_losses.append(train_loss)
 
             # plot batch iteration vs loss figure
@@ -278,7 +293,7 @@ class sequence_2_sequence_LSTM(Model):
 
         avg_train_loss = np.mean(train_losses)
         dev_loss = self.test(sess, valid_data)
-        return dev_loss, avg_train_loss, embedding
+        return dev_loss, avg_train_loss
 
     def train(self, sess, train_data, verbose = True):
         '''
@@ -289,13 +304,13 @@ class sequence_2_sequence_LSTM(Model):
         train, validation = train_test_split(train_data, train_test_ratio=0.8)
         prog = Progbar(target=self.n_epochs)
         for i, epoch in enumerate(range(self.n_epochs)):
-            dev_loss, avg_train_loss, embedding = self.run_epoch(sess, train, validation, verbose)
+            dev_loss, avg_train_loss = self.run_epoch(sess, train, validation, verbose)
             if verbose:
                 # print epoch results
                 prog.update(i + 1, exact = [("train loss", avg_train_loss), ("dev loss", dev_loss)])
             val_losses.append(dev_loss)
             train_losses.append(avg_train_loss)
-        return val_losses, train_losses, self.train_pred, self.test_pred, embedding
+        return val_losses, train_losses, self.train_pred, self.test_pred
 
     # def predict_on_batch(self, sess, input_frames):
     #     feed = self.create_feed_dict(input_frames, None)
@@ -319,32 +334,37 @@ def encoder(input_batch, hidden_size, dropout):
                                            scope=scope)
     return outputs, state
 
-def decoder(encoder_state, input_caption, word_vector_size, embedding, voca_size, hidden_size, max_sentence_length, dropout, training):
+def decoder(encoder_state, input_caption, word_vector_size, embedding, voc_size, hidden_size, max_sentence_length, dropout, training):
     with tf.variable_scope('decoder') as scope:
         lstm_de_cell = tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.BasicLSTMCell(hidden_size), output_keep_prob=dropout)
-        word_vec_list = []
+        outputs = []
         state = encoder_state #(N hidden_size)
 
-        pword_ls = []
+        prev_ind = None
+        words = []
         for i in range(max_sentence_length):
             if i == 0:
-                predict_word = tf.zeros([tf.shape(input_caption)[0], word_vector_size], tf.float32)
-            def f1(): return predict_word
+                # <START>
+                prev_vec = tf.zeros([tf.shape(input_caption)[0], word_vector_size], tf.float32)
+            def f1(): return prev_vec
             def f2(): return input_caption[:, i, :]
-            true_word = tf.cond(training < 1, lambda: f1(), lambda: f2())
+            # try commenting this to 
+            # prev_vec = tf.cond(training < 1, lambda: f1(), lambda: f2())
             if i == 1: scope.reuse_variables()
-            output_vector, state = lstm_de_cell(true_word, state)
-            scores = tf.layers.dense(output_vector, units=voca_size, name='hidden_to_word')
-            pword = tf.argmax(scores, axis = 1)
-            pword_ls.append(tf.identity(pword))
-            predict_word = tf.nn.embedding_lookup(embedding, pword)
-            word_vec_list.append(tf.identity(scores))
+                
+            output_vector, state = lstm_de_cell(prev_vec, state)
+            
+            # scores
+            scores = tf.layers.dense(output_vector, units = voc_size, name = 'hidden_to_scores')
+            prev_ind = tf.argmax(scores, axis = 1)
+            outputs.append(scores)
+            words.append(prev_ind)
+            prev_vec = tf.nn.embedding_lookup(embedding, prev_ind)
 
 
-        word_vecs = tf.stack(word_vec_list)
-        word_vecs = tf.transpose(word_vecs, perm=[1, 0, 2])
-
-        pword_ls = tf.stack(pword_ls)
-        pword_ls = tf.transpose(pword_ls)
-        return word_vecs, pword_ls
+        outputs = tf.stack(outputs)
+        outputs = tf.transpose(outputs, perm=[1, 0, 2])
+        words = tf.stack(words)
+        words = tf.transpose(words)
+        return outputs, words
 
