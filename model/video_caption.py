@@ -3,7 +3,7 @@ from __future__ import print_function
 import tensorflow as tf
 from tqdm import tqdm
 import numpy as np
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
 from util import *
 
 class Model(object):
@@ -123,19 +123,19 @@ class sequence_2_sequence_LSTM(Model):
         - embeddings: (np.array) shape (vocabulary size, word vector dimension)
         - flags: () store a series of hyperparameters
             -- input_size: (int) default pretrained VGG16 output 7*7*512
-            -- batch_size: (int) batch size 
+            -- batch_size: (int) batch size
             -- num_frames: (int) frame number default is 15
-            -- max_sentence_length: (int) max word sentence default is 20 
-            -- word_vector_size: (int) depend on which vocabulary used 
-            -- n_epochs: (int) how many epoches to run 
-            -- hidden_size: (int) hidden state vector size 
-            -- learning_rate: (float) learning rate 
+            -- max_sentence_length: (int) max word sentence default is 20
+            -- word_vector_size: (int) depend on which vocabulary used
+            -- n_epochs: (int) how many epoches to run
+            -- hidden_size: (int) hidden state vector size
+            -- learning_rate: (float) learning rate
 
         Placeholder variables:
         - frames_placeholder: (train X) tensor with shape (sample_size, frame_num, input_size)
         - caption_placeholder: (label Y) tensor with shape (sample_size, max_sentence_length)
         - is_training_placeholder: (train mode) tensor int32 0 or 1
-        - dropout_placeholder: (dropout keep probability) tensor float32 or 1 for testing 
+        - dropout_placeholder: (dropout keep probability) tensor float32 or 1 for testing
         '''
         self.pretrained_embeddings = embeddings
         self.input_size = flags.input_size
@@ -191,7 +191,7 @@ class sequence_2_sequence_LSTM(Model):
                                                     dropout=self.dropout_placeholder)
 
             caption_embeddings = tf.nn.embedding_lookup(self.embedding, self.caption_placeholder)
-            
+
             predict, pword_ls = decoder(encoder_state=encoder_state,
                                         input_caption=caption_embeddings,
                                         embedding = self.embedding,
@@ -201,7 +201,7 @@ class sequence_2_sequence_LSTM(Model):
                                         max_sentence_length=self.max_sentence_length,
                                         dropout=self.dropout_placeholder,
                                         training = self.is_training_placeholder)
-            
+
             return predict, pword_ls
 
     def add_loss_op(self, word_vecs):
@@ -217,7 +217,7 @@ class sequence_2_sequence_LSTM(Model):
 
     def add_training_op(self, loss_val):
 
-        # learning rate decay 
+        # learning rate decay
         # https://www.tensorflow.org/versions/r0.11/api_docs/python/train/decaying_the_learning_rate
         starter_lr = self.learning_rate
         lr = tf.train.exponential_decay(starter_lr, global_step = self.n_epochs,
@@ -287,15 +287,12 @@ class sequence_2_sequence_LSTM(Model):
         val_losses = []
         train_losses = []
         train, validation = train_test_split(train_data, train_test_ratio=0.8)
-        # train, validation = train_data, train_data
-        for epoch in tqdm(range(self.n_epochs)):
+        prog = Progbar(target=self.n_epochs)
+        for i, epoch in enumerate(range(self.n_epochs)):
             dev_loss, avg_train_loss, embedding = self.run_epoch(sess, train, validation, verbose)
-
             if verbose:
                 # print epoch results
-                print('Epoch {0}: train loss {1}, validation loss {2}'.format(epoch, \
-                        avg_train_loss, dev_loss))
-            
+                prog.update(i + 1, exact = [("train loss", avg_train_loss), ("dev loss", dev_loss)])
             val_losses.append(dev_loss)
             train_losses.append(avg_train_loss)
         return val_losses, train_losses, self.train_pred, self.test_pred, embedding
@@ -327,7 +324,7 @@ def decoder(encoder_state, input_caption, word_vector_size, embedding, voca_size
         lstm_de_cell = tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.BasicLSTMCell(hidden_size), output_keep_prob=dropout)
         word_vec_list = []
         state = encoder_state #(N hidden_size)
-        
+
         pword_ls = []
         for i in range(max_sentence_length):
             if i == 0:
@@ -340,26 +337,9 @@ def decoder(encoder_state, input_caption, word_vector_size, embedding, voca_size
             scores = tf.layers.dense(output_vector, units=voca_size, name='hidden_to_word')
             pword = tf.argmax(scores, axis = 1)
             pword_ls.append(pword)
-            predict_word = tf.nn.embedding_lookup(embedding, pword)  
-            pword = tf.cast(pword, tf.float32)
+            predict_word = tf.nn.embedding_lookup(embedding, pword)
+            # pword = tf.cast(pword, tf.float32)
             word_vec_list.append(scores)
-
-        # if training is True:
-        #     for i in range(max_sentence_length):
-        #         true_word = input_caption[:, i, :]
-        #         if i == 1: scope.reuse_variables() # after the first step reuse varibale
-        #         output_vector, state = lstm_de_cell(true_word, state)
-        #         predict_word = tf.layers.dense(output_vector, units=word_vector_size, name='hidden_to_word')
-        #         word_vec_list.append(predict_word)
-
-        # elif training is False:
-        #     for i in range(max_sentence_length):
-        #         if i == 0:
-        #             predict_word = tf.zeros([tf.shape(encoder_state)[0], word_vector_size], tf.float32)
-        #         if i == 1: scope.reuse_variables()
-        #         output_vector, state = lstm_de_cell(predict_word, state)
-        #         predict_word = tf.layers.dense(output_vector, units=word_vector_size, name='hidden_to_word')
-        #         word_vec_list.append(predict_word)
 
         word_vecs = tf.stack(word_vec_list)
         word_vecs = tf.transpose(word_vecs, perm=[1, 0, 2])
