@@ -340,6 +340,7 @@ def decoder(encoder_state, input_caption, word_vector_size, embedding, voca_size
             predict_word = tf.nn.embedding_lookup(embedding, pword)
             word_vec_list.append(tf.identity(scores))
 
+
         word_vecs = tf.stack(word_vec_list)
         word_vecs = tf.transpose(word_vecs, perm=[1, 0, 2])
 
