@@ -339,10 +339,9 @@ def decoder(encoder_state, input_caption, word_vector_size, embedding, voca_size
             output_vector, state = lstm_de_cell(true_word, state)
             scores = tf.layers.dense(output_vector, units=voca_size, name='hidden_to_word')
             pword = tf.argmax(scores, axis = 1)
-            pword_ls.append(pword)
+            pword_ls.append(tf.identity(pword))
             predict_word = tf.nn.embedding_lookup(embedding, pword)  
-            pword = tf.cast(pword, tf.float32)
-            word_vec_list.append(scores)
+            word_vec_list.append(tf.identity(scores))
 
         # if training is True:
         #     for i in range(max_sentence_length):
@@ -363,5 +362,8 @@ def decoder(encoder_state, input_caption, word_vector_size, embedding, voca_size
 
         word_vecs = tf.stack(word_vec_list)
         word_vecs = tf.transpose(word_vecs, perm=[1, 0, 2])
+        
+        pword_ls = tf.stack(pword_ls)
+        pword_ls = tf.transpose(pword_ls)
         return word_vecs, pword_ls
 
