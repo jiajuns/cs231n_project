@@ -80,7 +80,8 @@ def dataMapping(caption_dir, glove_dir, save_path):
 
     caption_words = []
     for key, value in id2caption.items():
-        wordls = ' '.join(i for i in value).split(" ")
+        #wordls = ' '.join(i for i in value).split(" ")
+        wordls = value.split(" ")
         caption_words.extend(wordls)
     caption_words = list(set(caption_words)) # the first is empty
     print('Unique word length: {}'.format(len(caption_words)))
@@ -100,6 +101,8 @@ def dataMapping(caption_dir, glove_dir, save_path):
     # <start>, <end>, <unk>
     mapping['<START>'] = [0.0] * len(word2vector[word])
     mapping['<unk>'] = word2vector['<unk>']
+    mapping['<pad>'] = np.random.normal(np.random.uniform(-0.4,0.4), np.random.uniform(0,1.75), 50)
+    mapping['<END>'] = np.random.normal(np.random.uniform(-0.4,0.4), np.random.uniform(0,1.75), 50)
 
     print('mapping length: {}'.format(len(mapping)))
     print('Dumpping mapping pickle file...')
@@ -118,11 +121,10 @@ def build_id_caption_dict(json_path, caption_path):
 
         dictionary = collections.defaultdict(list)
 
-        count = 0
         for s in train['sentences']: # keys() -> [u'caption', u'video_id', u'sen_id']
-          count += 1
-          dictionary[s['video_id']].append(s['caption'])
-
+            dictionary[s['video_id']].append(s['caption'])
+        print(len(dictionary.keys()))
+        
         with open('id_caption_dict.pickle', 'wb') as handle:
             pickle.dump(dictionary, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -203,10 +205,10 @@ if __name__ == '__main__':
     curr_path = os.getcwd()
     dataset_path = curr_path + '/datasets'
     glove_text_dir = os.path.join(dataset_path, 'glove.6B.50d.txt')
-    caption_dir = os.path.join(dataset_path, 'id_caption_dict.pickle')
+    caption_dir = os.path.join(dataset_path, 'id_caption_dict_clean.pickle')
     glove_dir = os.path.join(dataset_path, 'glove_dic.pickle')
     json_path = os.path.join(dataset_path, 'train_2017/videodatainfo_2017.json')
-    caption_path = os.path.join(dataset_path, 'id_caption_dict.pickle')
+    caption_path = os.path.join(dataset_path, 'id_caption_dict_clean.pickle')
 
     build_id_caption_dict(json_path, caption_path)
     dataLoader(glove_url, glove_filename, dataset_path, glove_text_dir)

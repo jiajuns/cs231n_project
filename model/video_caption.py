@@ -147,6 +147,7 @@ class sequence_2_sequence_LSTM(Model):
         self.n_epochs = flags.n_epochs
         self.hidden_size = flags.hidden_size
         self.learning_rate = flags.learning_rate
+        self.reg = 1e-4
 
         # ==== set up placeholder tokens ========
         self.frames_placeholder = tf.placeholder(tf.float32, shape=(None, self.num_frames, self.input_size))
@@ -163,7 +164,7 @@ class sequence_2_sequence_LSTM(Model):
 
         if is_training is True:
             feed[self.is_training_placeholder] = 1
-            feed[self.dropout_placeholder] = 0.7
+            feed[self.dropout_placeholder] = 0.5
         else:
             feed[self.is_training_placeholder] = 0
             feed[self.dropout_placeholder] = 1
@@ -226,7 +227,8 @@ class sequence_2_sequence_LSTM(Model):
             probs = tf.exp(outputs_flat - tf.reduce_max(outputs_flat, axis = 1, keep_dims = True))
             probs = probs / tf.reduce_sum(probs, axis = 1, keep_dims = True)
             correct_scores = tf.gather_nd(probs, tf.stack((tf.range(N*T), captions_flat), axis=1))
-            loss_val = -tf.reduce_sum(tf.log(correct_scores) * mask_flat) / N_float
+     
+            loss_val = -tf.reduce_sum(tf.log(correct_scores)) / N_float
             
         return loss_val
 
@@ -342,6 +344,10 @@ def decoder(encoder_state, input_caption, word_vector_size, embedding, voc_size,
 
         prev_ind = None
         words = []
+        # W = tf.Variable(tf.random_normal((hidden_size, voc_size)) / tf.sqrt(tf.cast(hidden_size, tf.float32)), name = 'affine_weight', import_scope = scope)
+        # print (W.name)
+        # b = tf.Variable(tf.zeros(voc_size), name = 'affine_bias')
+                  
         for i in range(max_sentence_length):
             if i == 0:
                 # <START>
@@ -349,13 +355,16 @@ def decoder(encoder_state, input_caption, word_vector_size, embedding, voc_size,
             def f1(): return prev_vec
             def f2(): return input_caption[:, i, :]
             # try commenting this to 
-            # prev_vec = tf.cond(training < 1, lambda: f1(), lambda: f2())
+            prev_vec = tf.cond(training < 1, lambda: f1(), lambda: f2())
             if i == 1: scope.reuse_variables()
                 
             output_vector, state = lstm_de_cell(prev_vec, state)
             
             # scores
-            scores = tf.layers.dense(output_vector, units = voc_size, name = 'hidden_to_scores')
+            #scores = tf.matmul(output_vector, W) + b
+            regularizer = tf.contrib.layers.l2_regularizer(scale = 1e-4)
+            scores = tf.layers.dense(output_vector, units = voc_size, name = 'hidden_to_scores', kernel_regularizer = regularizer)
+            
             prev_ind = tf.argmax(scores, axis = 1)
             outputs.append(scores)
             words.append(prev_ind)
