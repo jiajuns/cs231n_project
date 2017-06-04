@@ -11,8 +11,8 @@ from builtins import range
 def minibatches(input_frames, captions, batch_size, max_len):
     '''
     Input Args:
-    - input_frames: (np.array) (sample_size, frame_num, 7, 7, 512)
-    - captions: (dict) {video_id (int): [[captions (int) ]]}
+    - input_frames: (dict) {raw video id: np.array shape (frame_num, 4096)}
+    - captions: (list) list of tuple [(raw video id, captions index)]
     - batch_size: (int) how big the batch is
     - max_len: (int) maximum sentence length
 
@@ -38,7 +38,7 @@ def minibatches(input_frames, captions, batch_size, max_len):
         batch_input_frames = [input_frames[int(id)] for id in video_ind]
         batch_input_frames = np.stack(batch_input_frames)
         assert len(batch_input_frames.shape) == 3
-        #batch_input_frames = input_frames[video_ind]
+        # batch_input_frames = input_frames[video_ind]
         yield (video_ind, batch_input_frames, batch_input_captions)
     
     # for _ in range(pieceNum):
@@ -196,8 +196,8 @@ def train_test_split(data, train_test_ratio=0.8):
     '''
     Input Args:
     - data: (tuple) (input_frames, captions)
-        -- input_frames dict
-        -- captions list of tu
+        -- input_frames: (dict) {raw video id: np.array shape (frame_num, 4096)}
+        -- captions: (list) list of tuple [(raw video id, captions index)]
     - train_test_ratio: (float) train test/val split ratio
 
     train test/validation data split
@@ -209,15 +209,12 @@ def train_test_split(data, train_test_ratio=0.8):
     frames, captions = data
     num_samples = len(frames)
     num_train = int(num_samples * train_test_ratio)
-    indice = list(range(num_samples))
-
-    np.random.shuffle(indice)
     
     vid = np.array(list(frames.keys()))
+    np.random.shuffle(vid)
+    
     train_indice = vid[:num_train]
     test_indice = vid[num_train:]
-
-    # train_frames, test_frames = frames[train_indice], frames[test_indice]
     
     train_frames = {}
     test_frames = {}
