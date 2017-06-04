@@ -22,8 +22,8 @@ def minibatches(input_frames, captions, batch_size, max_len):
     - batch: (tuple) (batch_input_frames, batch_input_captions)
     '''
     random.seed(231)
-    _, frame_num, hwc = input_frames.shape
-    input_frames = input_frames.reshape((-1, frame_num, hwc))
+    # _, frame_num, hwc = input_frames.shape
+    # input_frames = input_frames.reshape((-1, frame_num, hwc))
     num_captions = len(captions)
     indices = np.arange(num_captions)
     random.shuffle(indices)
@@ -35,7 +35,10 @@ def minibatches(input_frames, captions, batch_size, max_len):
         for count, i in enumerate(minibatch_indices):
             batch_input_captions[count] = captions[i][1]
             video_ind[count] = captions[i][0]
-        batch_input_frames = input_frames[video_ind]
+        batch_input_frames = [input_frames[int(id)] for id in video_ind]
+        batch_input_frames = np.stack(batch_input_frames)
+        assert len(batch_input_frames.shape) == 3
+        #batch_input_frames = input_frames[video_ind]
         yield (video_ind, batch_input_frames, batch_input_captions)
     
     # for _ in range(pieceNum):
@@ -114,14 +117,14 @@ def cpation_data(dataPath, id_Ls, maxLen = 20):
     for count, video_id in enumerate(id_Ls):
         captionLs = [id_cap_dict["video"+str(video_id)]]
         for caption in captionLs:
-            caption_split = ["<START>"] + caption.split() + ["<END>"]
-
-            if len(caption_split) > maxLen: # only take captions within maxLen
-                break
-        
+            caption_split = caption.split()
+            if len(caption_split) >= maxLen-2:
+                caption_split = caption_split[0:maxLen-2]
+                
+            caption_split = ["<START>"] + caption_split + ["<END>"]
 
             captionInd = list(caption_to_ind(caption_split, w2ind, maxLen))
-            video_caption_pair = tuple([int(count), captionInd])
+            video_caption_pair = tuple([int(video_id), captionInd])
             caption_data.append(video_caption_pair)
     return caption_data
 
@@ -171,18 +174,20 @@ def load_caption_data(sample_size, dataPath, train = True):
     '''
     if train:
         captions_train = pickle.load(open(dataPath+"id_captionInd_train.pickle", "rb"))
-        input_frames_train = np.load(dataPath + 'Xtrain_all_15frames.npy')
-        input_frames_train = input_frames_train.reshape((-1, 15, 7, 7, 512))[:sample_size]
-        input_frames_train = input_frames_train.reshape((sample_size, 15, 7*7*512))
+        # input_frames_train = np.load(dataPath + 'Xtrain_allCap_15frames.npy')
+        input_frames_train = pickle.load(open(dataPath + 'input_frames_train.pickle', 'rb'))
+        # input_frames_train = input_frames_train.reshape((-1, 15, 4096))[:sample_size]
+        # input_frames_train = input_frames_train.reshape((sample_size, 15, 4096))
         word_dict = pickle.load(open(dataPath + "word2Vector.pickle", "rb"))
         word2Index = pickle.load(open(dataPath + 'word2index.pickle', 'rb'))
         index2Word = pickle.load(open(dataPath + 'index2word.pickle', 'rb'))
         return input_frames_train, captions_train, word_dict, word2Index, index2Word
     else:
         captions_test = pickle.load(open(dataPath+"id_captionInd_test.pickle", "rb"))
-        input_frames_test = np.load(dataPath + 'Xtest_all_15frames.npy')
-        input_frames_test = input_frames_test.reshape((-1, 15, 7, 7, 512))[:sample_size]
-        input_frames_test = input_frames_test.reshape((sample_size, 15, 7*7*512))
+        # input_frames_test = np.load(dataPath + 'Xtest_allCap_15frames.npy')
+        input_frames_test = pickle.load(open(dataPath + 'input_frames_test.pickle', 'rb'))
+        # input_frames_test = input_frames_test.reshape((-1, 15, 4096))[:sample_size]
+        # input_frames_test = input_frames_test.reshape((sample_size, 15, 4096))
         return input_frames_test, captions_test
 
     
@@ -191,8 +196,8 @@ def train_test_split(data, train_test_ratio=0.8):
     '''
     Input Args:
     - data: (tuple) (input_frames, captions)
-        -- input_frames (np.array) (sample_size, frame_num, 7, 7, 512)
-        -- captions (dict) {video_id (int): [[captions (int)]]}
+        -- input_frames dict
+        -- captions list of tu
     - train_test_ratio: (float) train test/val split ratio
 
     train test/validation data split
@@ -207,16 +212,30 @@ def train_test_split(data, train_test_ratio=0.8):
     indice = list(range(num_samples))
 
     np.random.shuffle(indice)
-    train_indice = indice[:num_train]
-    test_indice = indice[num_train:]
+    
+    vid = np.array(list(frames.keys()))
+    train_indice = vid[:num_train]
+    test_indice = vid[num_train:]
 
-    train_frames, test_frames = frames[train_indice], frames[test_indice]
-    train_captions = {}
-    for idx, i in enumerate(train_indice):
-        train_captions[idx] = captions[i]
-    test_captions = {}
-    for idx, i in enumerate(test_indice):
-        test_captions[idx] = captions[i]
+    # train_frames, test_frames = frames[train_indice], frames[test_indice]
+    
+    train_frames = {}
+    test_frames = {}
+    train_captions = []
+    test_captions = []
+        
+    for tr_id in train_indice:
+        train_frames[tr_id] = frames[tr_id]
+        for tu in captions:
+            vid, cap = tu
+            if vid == tr_id:
+                train_captions.append(tu)
+    for te_id in test_indice:
+        test_frames[te_id] = frames[te_id]
+        for tu in captions:
+            vid, cap = tu
+            if vid == te_id:
+                test_captions.append(tu)
 
     train_data = (train_frames, train_captions)
     test_data = (test_frames, test_captions)
