@@ -243,7 +243,6 @@ class sequence_2_sequence_LSTM(Model):
         return loss_val
 
     def add_training_op(self, loss_val):
-
         # learning rate decay
         # https://www.tensorflow.org/versions/r0.11/api_docs/python/train/decaying_the_learning_rate
         starter_lr = self.learning_rate
@@ -275,6 +274,15 @@ class sequence_2_sequence_LSTM(Model):
         loss, predict_index = sess.run([self.loss, self.word_ind], feed_dict=feed)
         self.test_pred = predict_index
         return loss
+
+    def predict_on_batch(self, sess, input_frames):
+        feed = {
+            self.frames_placeholder: input_frames,
+            self.is_training_placeholder: 0,
+            self.dropout_placeholder: 1
+        }
+        predict_index = sess.run([self.word_ind], feed_dict=feed)[0]
+        return predict_index
 
     def test(self, sess, valid_data):
         """
@@ -327,10 +335,30 @@ class sequence_2_sequence_LSTM(Model):
             train_losses.append(avg_train_loss)
         return val_losses, train_losses, self.train_pred, self.test_pred, self.train_id, self.val_id
 
-    # def predict_on_batch(self, sess, input_frames):
-    #     feed = self.create_feed_dict(input_frames, None)
-    #     outputs = sess.run([self.pred], feed_dict=feed)
-    #     return outputs
+    def predict(self, sess, input_frames_dict):
+        """
+        Input Args:
+        input_frames: (dictionary), {videoId: frames}
+        Output:
+        list_video_index: (list), [video_id, ...]
+        list_predict_index: (list), [[word_index, word_index...],...]
+        """
+        list_predict_index = []
+        list_video_index = []
+        num_inputs = input_frames.shape[0]
+
+        input_frames = []
+        for video_id, frames in input_frames_dict.item():
+            list_video_index.append(video_id)
+            input_frames.append(frames)
+
+        for batch_start in tqdm(np.arange(0, num_inputs, self.batch_size)):
+            batch_frames = input_frames[batch_start:batch_start+self.batch_size]
+            predict_index = self.predict_on_batch(sess, batch_frames)
+            for pred in predict_index:
+                list_predict_index.append(pred)
+
+        return list_video_index, list_predict_index
 
 def plot_loss(train_losses):
     plt.plot(range(len(train_losses)), train_losses, 'b-')
