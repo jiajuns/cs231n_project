@@ -226,13 +226,20 @@ class sequence_2_sequence_LSTM(Model):
             
             N_float = tf.cast(N, tf.float32)
             outputs_flat = tf.cast(outputs_flat, tf.float32)
-            probs = tf.exp(outputs_flat - tf.reduce_max(outputs_flat, axis = 1, keep_dims = True))
+            # probs = tf.exp(outputs_flat - tf.reduce_max(outputs_flat, axis = 1, keep_dims = True))
              
-            probs = probs / tf.reduce_sum(probs, axis = 1, keep_dims = True)
-            probs = tf.reshape(probs, [N*T, V])
-            correct_scores = tf.gather_nd(probs, tf.stack((tf.range(N*T), captions_flat), axis=1))
+            # probs = probs / tf.reduce_sum(probs, axis = 1, keep_dims = True)
+            # probs = tf.reshape(probs, [N*T, V])
+            # correct_scores = tf.gather_nd(probs, tf.stack((tf.range(N*T), captions_flat), axis=1))
      
-            loss_val = -tf.reduce_sum(tf.log(correct_scores)) / N_float
+            # loss_val = -tf.reduce_sum(tf.log(correct_scores)) / N_float
+        
+        
+            logits = outputs_flat
+            captions = tf.cast(captions_flat, tf.int32)
+            labels = tf.one_hot(captions, self.voc_size)
+            loss_val = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits = outputs, labels = labels))
+            
         return loss_val
 
     def add_training_op(self, loss_val):
@@ -387,6 +394,9 @@ def decoder(encoder_state, encoder_outputs, input_caption, word_vector_size, emb
 
         prev_ind = None
         words = []
+        
+        W = tf.Variable(tf.random_normal((hidden_size, voc_size)) / tf.sqrt(tf.cast(hidden_size, tf.float32)), name = 'affine_weight')
+        b = tf.Variable(tf.zeros(voc_size), name = 'affine_bias')
                   
         for i in range(max_sentence_length):
             if i == 0:
@@ -413,7 +423,8 @@ def decoder(encoder_state, encoder_outputs, input_caption, word_vector_size, emb
             
             # scores
             regularizer = tf.contrib.layers.l2_regularizer(scale = 1e-5)
-            scores = tf.layers.dense(output_vector, units = voc_size, name = 'hidden_to_scores', kernel_regularizer = regularizer)
+            # scores = tf.layers.dense(output_vector, units = voc_size, name = 'hidden_to_scores', kernel_regularizer = regularizer)
+            scores = tf.matmul(output_vector, W) + b
             
             # max score word index 
             prev_ind = tf.argmax(scores, axis = 1)
