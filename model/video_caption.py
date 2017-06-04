@@ -180,7 +180,7 @@ class sequence_2_sequence_LSTM(Model):
         with tf.variable_scope("embeddings"):
             vec_embeddings = tf.get_variable("embeddings",
                                              initializer=self.pretrained_embeddings,
-                                             trainable=True,
+                                             trainable=False,
                                              dtype=tf.float32)
         return vec_embeddings
 
@@ -412,7 +412,7 @@ def decoder(encoder_state, encoder_outputs, input_caption, word_vector_size, emb
             output_vector, state = lstm_de_cell(dec_inp, state)
             
             # scores
-            regularizer = tf.contrib.layers.l2_regularizer(scale = 1e-4)
+            regularizer = tf.contrib.layers.l2_regularizer(scale = 1e-5)
             scores = tf.layers.dense(output_vector, units = voc_size, name = 'hidden_to_scores', kernel_regularizer = regularizer)
             
             # max score word index 
