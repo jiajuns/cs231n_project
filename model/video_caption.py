@@ -180,7 +180,7 @@ class sequence_2_sequence_LSTM(Model):
         with tf.variable_scope("embeddings"):
             vec_embeddings = tf.get_variable("embeddings",
                                              initializer=self.pretrained_embeddings,
-                                             trainable=False,
+                                             trainable=True,
                                              dtype=tf.float32)
         return vec_embeddings
 
@@ -227,11 +227,12 @@ class sequence_2_sequence_LSTM(Model):
             N_float = tf.cast(N, tf.float32)
             outputs_flat = tf.cast(outputs_flat, tf.float32)
             probs = tf.exp(outputs_flat - tf.reduce_max(outputs_flat, axis = 1, keep_dims = True))
+             
             probs = probs / tf.reduce_sum(probs, axis = 1, keep_dims = True)
+            probs = tf.reshape(probs, [N*T, V])
             correct_scores = tf.gather_nd(probs, tf.stack((tf.range(N*T), captions_flat), axis=1))
      
             loss_val = -tf.reduce_sum(tf.log(correct_scores)) / N_float
-            
         return loss_val
 
     def add_training_op(self, loss_val):
