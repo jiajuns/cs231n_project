@@ -21,14 +21,14 @@ def minibatches(input_frames, captions, batch_size, max_len):
     Output:
     - batch: (tuple) (batch_input_frames, batch_input_captions)
     '''
-    random.seed(231)
     # _, frame_num, hwc = input_frames.shape
     # input_frames = input_frames.reshape((-1, frame_num, hwc))
     num_captions = len(captions)
     indices = np.arange(num_captions)
-    random.shuffle(indices)
+    np.random.shuffle(indices)
     
     for minibatch_start in np.arange(0, num_captions, batch_size):
+        np.random.shuffle(indices)
         minibatch_indices = indices[minibatch_start:minibatch_start + batch_size]
         batch_input_captions = np.zeros((len(minibatch_indices), max_len))
         video_ind = np.empty((len(minibatch_indices)))
