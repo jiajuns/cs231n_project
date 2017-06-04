@@ -15,7 +15,7 @@ from skimage import img_as_float
 from keras.applications.vgg16 import VGG16
 from keras.applications.vgg16 import preprocess_input
 
-def load_features(num_videos, num_frames, video_idx, labels, size = (224, 224, 3), train_test_flag='train'):
+def load_features(model, num_videos, num_frames, video_idx, labels, size = (224, 224, 3), train_test_flag='train'):
     '''
     Concanate video frames over short clip period
     frame_dir: frames folder directory
@@ -27,23 +27,22 @@ def load_features(num_videos, num_frames, video_idx, labels, size = (224, 224, 3
     else:
         batch_size = 30
 
-    model = vgg_16_pretrained()
     h, w, c = size
     
     # labels = np.load(os.getcwd() + '/datasets/category.npy')
     curr = os.getcwd()
-    cache_path = os.path.join(curr, 'datasets', 'cache',
-                              '{0}_num_videos{1}_num_frame{2}.npz'.format(train_test_flag, num_videos, num_frames))
+    # cache_path = os.path.join(curr, 'datasets', 'cache',
+                              # '{0}_num_videos{1}_num_frame{2}.npz'.format(train_test_flag, num_videos, num_frames))
 
     # initialize cache dir
-    if not os.path.exists(os.path.join(curr, 'datasets', 'cache')):
-        os.makedirs(os.path.join(curr, 'datasets', 'cache'))
+    # if not os.path.exists(os.path.join(curr, 'datasets', 'cache')):
+        # os.makedirs(os.path.join(curr, 'datasets', 'cache'))
     
     # check existed cache path
-    if os.path.isfile(cache_path):
-        print('find matched cache file {}'.format(cache_path))
-        cache_data = np.load(cache_path)
-        return cache_data['Xtrain'], cache_data['ytrain']
+    # if os.path.isfile(cache_path):
+        # print('find matched cache file {}'.format(cache_path))
+        # cache_data = np.load(cache_path)
+        # return cache_data['Xtrain'], cache_data['ytrain']
 
     video_info_list = []
     for i, vid in enumerate(video_idx):
@@ -54,7 +53,7 @@ def load_features(num_videos, num_frames, video_idx, labels, size = (224, 224, 3
     p = mp.Pool(mp.cpu_count())
     print('processing videos...')
 
-    Xtrain = np.zeros((len(video_info_list), num_frames, 7, 7, 512))
+    Xtrain = np.zeros((len(video_info_list), num_frames, 4096))
     ytrain = []
     temp_frames_collection = []
     vid_ls = []
@@ -69,8 +68,8 @@ def load_features(num_videos, num_frames, video_idx, labels, size = (224, 224, 3
             frames = np.concatenate(temp_frames_collection, axis=0)
             frames = frames.reshape((-1, h, w, c))
             temp_Xtrain = model.predict(frames)
-            temp_Xtrain = temp_Xtrain.reshape((-1, num_frames, 7, 7, 512))
-            Xtrain[i+1-1*batch_size:i+1,:,:,:,:] = temp_Xtrain
+            temp_Xtrain = temp_Xtrain.reshape((-1, num_frames, 4096))
+            Xtrain[i+1-1*batch_size:i+1,:,:] = temp_Xtrain
             temp_frames_collection = []
 
     # process the remaining frames
@@ -78,8 +77,8 @@ def load_features(num_videos, num_frames, video_idx, labels, size = (224, 224, 3
         frames = np.concatenate(temp_frames_collection, axis=0)
         frames = frames.reshape((-1, h, w, c))
         temp_Xtrain = model.predict(frames)
-        temp_Xtrain = temp_Xtrain.reshape((-1, num_frames, 7, 7, 512))
-        Xtrain[-len(temp_frames_collection):,:,:,:,:] = temp_Xtrain
+        temp_Xtrain = temp_Xtrain.reshape((-1, num_frames, 4096))
+        Xtrain[-len(temp_frames_collection):,:,:] = temp_Xtrain
         temp_frames_collection = []
 
     Xtrain = np.concatenate(Xtrain)
@@ -96,7 +95,7 @@ def load_features(num_videos, num_frames, video_idx, labels, size = (224, 224, 3
     np.save(os.getcwd() + '/datasets/videoId' + train_test_flag + '_all_' + str(num_frames)\
                  + 'frames.npy', vid_ls)
     
-    del model
+    model = None
     gc.collect()
     
     return Xtrain, ytrain
@@ -106,9 +105,11 @@ def vgg_16_pretrained():
     VGG 16 pretrained model without last 3 fully-connected
     '''
     # vgg without 3 fc
-    model = VGG16(weights='imagenet', include_top=False)
+    model = VGG16(weights='imagenet', include_top=True) # return 4096 
+    model.layers.pop()
     for layer in model.layers:
         layer.trainable = False
+    model.outputs = [model.layers[-1].output]
     return model
 
 def process_video(video_info):

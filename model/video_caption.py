@@ -274,7 +274,8 @@ class sequence_2_sequence_LSTM(Model):
         valid_loss = []
         input_frames, captions = valid_data
         for batch in minibatches(input_frames, captions, self.batch_size, self.max_sentence_length):
-            loss = self.test_on_batch(sess, *batch)
+            vid, inp, cap = batch
+            loss = self.test_on_batch(sess, inp, cap)
             valid_loss.append(loss)
         return np.mean(valid_loss)
 
@@ -286,8 +287,8 @@ class sequence_2_sequence_LSTM(Model):
         train_losses = []
         input_frames, captions = train_data
         for batch in minibatches(input_frames, captions, self.batch_size, self.max_sentence_length):
-            inp, cap = batch
-            train_loss = self.train_on_batch(sess, *batch)
+            vid, inp, cap = batch
+            train_loss = self.train_on_batch(sess, inp, cap)
             train_losses.append(train_loss)
 
             # plot batch iteration vs loss figure
