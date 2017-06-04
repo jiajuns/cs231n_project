@@ -126,6 +126,7 @@ class sequence_2_sequence_LSTM(Model):
             -- batch_size: (int) batch size
             -- num_frames: (int) frame number default is 15
             -- max_sentence_length: (int) max word sentence default is 20
+            -- voc_size: (int) vocabulary size
             -- word_vector_size: (int) depend on which vocabulary used
             -- n_epochs: (int) how many epoches to run
             -- hidden_size: (int) hidden state vector size

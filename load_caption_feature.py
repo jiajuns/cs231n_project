@@ -88,11 +88,11 @@ def load_features(model, num_videos, num_frames, video_idx, labels, size = (224,
     # np.savez(cache_path, Xtrain=Xtrain, ytrain=ytrain, video_id = vid_ls)
 
     # save data
-    np.save(os.getcwd() + '/datasets/X' + train_test_flag + '_all_' + str(num_frames)\
-                 + 'frames.npy', Xtr)
-    np.save(os.getcwd() + '/datasets/y' + train_test_flag + '_all_'  + str(num_frames) \
-                + 'frames.npy', ytr)
-    np.save(os.getcwd() + '/datasets/videoId' + train_test_flag + '_all_' + str(num_frames)\
+    np.save(os.getcwd() + '/datasets/X' + train_test_flag + '_all_Cap' + str(num_frames)\
+                 + 'frames.npy', Xtrain)
+    np.save(os.getcwd() + '/datasets/y' + train_test_flag + '_all_Cap'  + str(num_frames) \
+                + 'frames.npy', ytrain)
+    np.save(os.getcwd() + '/datasets/videoId' + train_test_flag + '_all_Cap' + str(num_frames)\
                  + 'frames.npy', vid_ls)
     
     model = None
