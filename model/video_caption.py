@@ -456,3 +456,104 @@ def decoder(encoder_state, encoder_outputs, input_caption, word_vector_size, emb
         words = tf.transpose(words)
         return outputs, words
 
+
+def encoder_v2(input_batch, hidden_size, dropout, max_len):
+    '''
+    Input Args:
+    input_batch: (tensor) shape (batch_size, frame_num = 15, channels = 4096)
+    hidden_size: (int) output vector dimension for each cell in encoder
+    dropout: (placeholder variable) dropout probability keep
+    max_len: (int) max sentence length
+    
+    Output:
+    outputs: (tensor list) a series of outputs from cells [[batch_size, hidden_size]]
+    state: (tensor) [[batch_size, state_size]]
+    '''
+    with tf.variable_scope('encoder') as scope:
+        lstm_en_cell = tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.BasicLSTMCell(hidden_size), output_keep_prob=dropout)
+        
+        # add <pad> to max length
+        inp_shape = tf.shape(input_batch)
+        batch_size, frame_num, c = inp_shape[0], inp_shape[1], inp_shape[2]
+        pads = tf.zeros([batch_size, max_len, c], tf.float32)
+        
+        # concatenate input_batch and pads
+        enc_inp = tf.concat([input_batch, pads], axis = 1)
+        
+        outputs, state = tf.nn.dynamic_rnn(lstm_en_cell,
+                                           inputs=enc_inp,
+                                           dtype=tf.float32,
+                                           scope=scope)
+    return outputs, state
+
+def decoder_v2(encoder_outputs, input_caption, word_vector_size, embedding, voc_size, hidden_size, max_sentence_length, dropout, training):
+    '''
+    Input Args:
+    encoder_state: (array) shape (batch_size, state_size)
+    encoder_outputs: (list) a series of hidden states (batch_size, hidden_size)
+    input_caption: (tensor) after embedding captions (batch_size, T(frame_num), max_len+frame_num)
+    word_vector_size: (int) word vector size depends on vocabulary used
+    embedding: (embedding type) for lookup new word vector
+    voc_size: (int) vocabulary size outside input
+    hidden_size: (int) cell hidden size
+    max_sentence_length: (int) max_sentence_length, here is 20
+    dropout: (float) dropout keep probability
+    training: (tensor placeholder) 0 or 1 to control mode
+    
+    Output:
+    outputs: (tensor) save decoder cell output vector
+    words: (tensor) save word index 
+    '''
+    with tf.variable_scope('decoder') as scope:
+        lstm_de_cell = tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.BasicLSTMCell(hidden_size), output_keep_prob=dropout)
+        outputs = []
+        inp_shape = tf.shape(encoder_outputs)
+        batch_size, input_len = inp_shape[0], inp_shape[1]
+        pad_len = input_len - max_sentence_length
+        state = tf.zeros((batch_size, hidden_size))
+        # state = encoder_state #(N, state_size)
+        pads = tf.zeros([batch_size, pad_len, word_vector_size], tf.float32)
+        
+
+        for i in range(pad_len):
+            if i >= 1: scope.reuse_variables()
+            enc_out = encoder_outputs[:, i, :]
+            dec_inp = tf.concat([enc_out, pads[:,i,:]], axis = 1)
+            _, state = lstm_de_cell(dec_inp, state)
+
+        prev_ind = None
+        words = []
+
+        for i in range(max_sentence_length):
+            if i == 0: prev_vec = tf.ones([tf.shape(input_caption)[0], word_vector_size], tf.float32) # <START>
+            def f1(): return prev_vec
+            def f2(): return input_caption[:, i, :]
+            
+            # concatnate encoder hidden output and ground-truth (training) / previous word (test) vector
+            prev_vec = tf.cond(training < 1, lambda: f1(), lambda: f2())
+            prev_vec = tf.reshape(prev_vec, [batch_size, word_vector_size])
+            enc_out = encoder_outputs[:, i+pad_len, :]
+            try: 
+                enc_out = tf.reshape(enc_out, [batch_size, hidden_size])
+            except:
+                raise Exception("Decoder hidden size doesn't match with encoder hidden size!")
+                
+            dec_inp = tf.concat([enc_out, prev_vec], axis = 1)
+            output_vector, state = lstm_de_cell(dec_inp, state)
+            
+            # scores
+            regularizer = tf.contrib.layers.l2_regularizer(scale = 1e-5)
+            scores = tf.layers.dense(output_vector, units = voc_size, name = 'hidden_to_scores', kernel_regularizer = regularizer)
+            
+            # max score word index 
+            prev_ind = tf.argmax(scores, axis = 1)
+            outputs.append(scores)
+            words.append(prev_ind)
+            prev_vec = tf.nn.embedding_lookup(embedding, prev_ind)
+
+        # convert to tensor
+        outputs = tf.stack(outputs)
+        outputs = tf.transpose(outputs, perm=[1, 0, 2])
+        words = tf.stack(words)
+        words = tf.transpose(words)
+        return outputs, words
