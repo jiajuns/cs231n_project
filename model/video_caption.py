@@ -5,6 +5,7 @@ from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 from util import *
+import os
 
 class Model(object):
     """Abstracts a Tensorflow graph for a learning task.
@@ -149,6 +150,9 @@ class sequence_2_sequence_LSTM(Model):
         self.hidden_size = flags.hidden_size
         self.learning_rate = flags.learning_rate
         self.reg = 1e-4
+        self.train_embedding = False
+        self.best_val = float('inf')
+        self.best_model = None
 
         # ==== set up placeholder tokens ========
         self.frames_placeholder = tf.placeholder(tf.float32, shape=(None, self.num_frames, self.input_size))
@@ -180,7 +184,7 @@ class sequence_2_sequence_LSTM(Model):
         with tf.variable_scope("embeddings"):
             vec_embeddings = tf.get_variable("embeddings",
                                              initializer=self.pretrained_embeddings,
-                                             trainable=False,
+                                             trainable=self.train_embedding,
                                              dtype=tf.float32)
         return vec_embeddings
 
@@ -331,6 +335,11 @@ class sequence_2_sequence_LSTM(Model):
             if verbose:
                 # print epoch results
                 prog.update(i + 1, exact = [("train loss", avg_train_loss), ("dev loss", dev_loss)])
+                if dev_loss < self.best_val:
+                    print('Validation loss improved, Save Model!')
+            if dev_loss < self.best_val:
+                saver = tf.train.Saver()
+                save_path = saver.save(sess, os.getcwd() + "/model/bestModel.ckpt")
             val_losses.append(dev_loss)
             train_losses.append(avg_train_loss)
         return val_losses, train_losses, self.train_pred, self.test_pred, self.train_id, self.val_id
@@ -386,7 +395,7 @@ def encoder(input_batch, hidden_size, dropout, max_len):
         # add <pad> to max length
         inp_shape = tf.shape(input_batch)
         batch_size, frame_num, c = inp_shape[0], inp_shape[1], inp_shape[2]
-        pads = tf.zeros([batch_size, max_len-frame_num, c], tf.float32)
+        pads = tf.zeros([batch_size, max_len, c], tf.float32)
         
         # concatenate input_batch and pads
         enc_inp = tf.concat([input_batch, pads], axis = 1)
@@ -423,8 +432,8 @@ def decoder(encoder_state, encoder_outputs, input_caption, word_vector_size, emb
         prev_ind = None
         words = []
         
-        W = tf.Variable(tf.random_normal((hidden_size, voc_size)) / tf.sqrt(tf.cast(hidden_size, tf.float32)), name = 'affine_weight')
-        b = tf.Variable(tf.zeros(voc_size), name = 'affine_bias')
+        # W = tf.Variable(tf.random_normal((hidden_size, voc_size)) / tf.sqrt(tf.cast(hidden_size, tf.float32)), name = 'affine_weight')
+        # b = tf.Variable(tf.zeros(voc_size), name = 'affine_bias')
                   
         for i in range(max_sentence_length):
             if i == 0:
@@ -450,9 +459,9 @@ def decoder(encoder_state, encoder_outputs, input_caption, word_vector_size, emb
             output_vector, state = lstm_de_cell(dec_inp, state)
             
             # scores
-            regularizer = tf.contrib.layers.l2_regularizer(scale = 1e-5)
-            # scores = tf.layers.dense(output_vector, units = voc_size, name = 'hidden_to_scores', kernel_regularizer = regularizer)
-            scores = tf.matmul(output_vector, W) + b
+            regularizer = tf.contrib.layers.l2_regularizer(scale = 1e-4)
+            scores = tf.layers.dense(output_vector, units = voc_size, name = 'hidden_to_scores', kernel_regularizer = regularizer)
+            # scores = tf.matmul(output_vector, W) + b
             
             # max score word index 
             prev_ind = tf.argmax(scores, axis = 1)
