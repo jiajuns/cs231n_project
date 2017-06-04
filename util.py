@@ -24,18 +24,30 @@ def minibatches(input_frames, captions, batch_size, max_len):
     random.seed(231)
     _, frame_num, hwc = input_frames.shape
     input_frames = input_frames.reshape((-1, frame_num, hwc))
-    N = len(input_frames)
-    pieceNum = N // batch_size
-    for _ in range(pieceNum):
-        random_index = np.random.choice(N, batch_size, replace = False)
-        video_ind = np.array(random_index)
+    num_captions = len(captions)
+    indices = np.arange(num_captions)
+    random.shuffle(indices)
+    
+    for minibatch_start in np.arange(0, num_captions, batch_size):
+        minibatch_indices = indices[minibatch_start:minibatch_start + batch_size]
+        batch_input_captions = np.zeros((len(minibatch_indices), max_len))
+        video_ind = np.empty((len(minibatch_indices)))
+        for count, i in enumerate(minibatch_indices):
+            batch_input_captions[count] = captions[i][1]
+            video_ind[count] = captions[i][0]
         batch_input_frames = input_frames[video_ind]
-        batch_input_captions = np.zeros((len(video_ind), max_len))
-        for count, i in enumerate(random_index):
-            video_caps = captions[i]
-            cap_id = random.choice(range(len(video_caps)))
-            batch_input_captions[count] = video_caps[cap_id]
         yield (video_ind, batch_input_frames, batch_input_captions)
+    
+    # for _ in range(pieceNum):
+    #     random_index = np.random.choice(N, batch_size, replace = False)
+    #     video_ind = np.array(random_index)
+    #     batch_input_frames = input_frames[video_ind]
+    #     batch_input_captions = np.zeros((len(video_ind), max_len))
+    #     for count, i in enumerate(random_index):
+    #         video_caps = captions[i]
+    #         cap_id = random.choice(range(len(video_caps)))
+    #         batch_input_captions[count] = video_caps[cap_id]
+    #     yield (video_ind, batch_input_frames, batch_input_captions)
 
 class ind_word_convertor():
     '''
