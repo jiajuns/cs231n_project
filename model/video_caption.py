@@ -146,7 +146,7 @@ class sequence_2_sequence_LSTM(Model):
         self.max_sentence_length = flags.max_sentence_length
         self.word_vector_size = flags.word_vector_size
         self.state_size = flags.state_size
-
+        
         # control by outsider
         self.pretrained_embeddings = embeddings
         self.batch_size = batch_size
@@ -237,11 +237,11 @@ class sequence_2_sequence_LSTM(Model):
         # learning rate decay
         # https://www.tensorflow.org/versions/r0.11/api_docs/python/train/decaying_the_learning_rate
         starter_lr = self.learning_rate
-        # lr = tf.train.exponential_decay(starter_lr, global_step = self.n_epochs,
-        #                                    decay_steps = 10, decay_rate = 0.96, staircase=True)
-        # optimizer = tf.train.AdamOptimizer(lr)
+        lr = tf.train.exponential_decay(starter_lr, global_step = 700*self.n_epochs,
+                                            decay_steps = 300, decay_rate = 0.9, staircase=True)
+        #optimizer = tf.train.AdamOptimizer(lr)
 
-        optimizer = tf.train.RMSPropOptimizer(learning_rate = starter_lr, decay = 0.95, momentum = 0.9)
+        optimizer = tf.train.RMSPropOptimizer(learning_rate = lr, decay = 0.95, momentum = 0.9)
         self.updates = optimizer.minimize(loss_val)
 
     def train_on_batch(self, sess, input_frames, input_caption):
@@ -296,10 +296,14 @@ class sequence_2_sequence_LSTM(Model):
         """
         train_losses = []
         input_frames, captions = train_data
+        prog = Progbar(target=len(captions)//self.batch_size)
+        i = 0
         for batch in minibatches(input_frames, captions, self.batch_size, self.max_sentence_length):
+            i += 1
             vid, inp, cap = batch
             self.train_id = vid
             train_loss = self.train_on_batch(sess, inp, cap)
+            prog.update(i + 1, exact = [("train loss", train_loss)])
             train_losses.append(train_loss)
 
             # plot batch iteration vs loss figure

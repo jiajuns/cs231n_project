@@ -26,7 +26,7 @@ def minibatches(input_frames, captions, batch_size, max_len):
     num_captions = len(captions)
     indices = np.arange(num_captions)
     np.random.shuffle(indices)
-    
+
     for minibatch_start in np.arange(0, num_captions, batch_size):
         np.random.shuffle(indices)
         minibatch_indices = indices[minibatch_start:minibatch_start + batch_size]
@@ -223,6 +223,55 @@ def train_test_split(data, train_test_ratio=0.8):
         
     for tr_id in train_indice:
         train_frames[tr_id] = frames[tr_id]
+        train_captions.append((tr_id, captions[tr_id]))
+        #for tu in captions:
+            #vid, cap = tu
+            #if vid == tr_id:
+                #train_captions.append(tu)
+    for te_id in test_indice:
+        test_frames[te_id] = frames[te_id]
+        test_captions.append((te_id, captions[te_id]))
+        #for tu in captions:
+        #    vid, cap = tu
+        #    if vid == te_id:
+        #        test_captions.append(tu)
+
+    train_data = (train_frames, train_captions)
+    test_data = (test_frames, test_captions)
+
+    return train_data, test_data
+
+def train_test_split_save(data, train_test_ratio=0.8):
+    '''
+    Input Args:
+    - data: (tuple) (input_frames, captions)
+        -- input_frames: (dict) {raw video id: np.array shape (frame_num, 4096)}
+        -- captions: (list) list of tuple [(raw video id, captions index)]
+    - train_test_ratio: (float) train test/val split ratio
+
+    train test/validation data split
+
+    Output:
+    train_data: (tuple) (input_frames_train, captions_train)
+    test_data: (tuple) (input_frames_test/val, captions_test/val)
+    '''
+    frames, captions = data
+    num_samples = len(frames)
+    num_train = int(num_samples * train_test_ratio)
+    
+    vid = np.array(list(frames.keys()))
+    np.random.shuffle(vid)
+    
+    train_indice = vid[:num_train]
+    test_indice = vid[num_train:]
+    
+    train_frames = {}
+    test_frames = {}
+    train_captions = []
+    test_captions = []
+        
+    for tr_id in train_indice:
+        train_frames[tr_id] = frames[tr_id]
         for tu in captions:
             vid, cap = tu
             if vid == tr_id:
@@ -238,6 +287,7 @@ def train_test_split(data, train_test_ratio=0.8):
     test_data = (test_frames, test_captions)
 
     return train_data, test_data
+
 
 class Progbar(object):
     """
