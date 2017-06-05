@@ -181,7 +181,13 @@ def load_caption_data(sample_size, dataPath, train = True):
         word_dict = pickle.load(open(dataPath + "word2Vector.pickle", "rb"))
         word2Index = pickle.load(open(dataPath + 'word2index.pickle', 'rb'))
         index2Word = pickle.load(open(dataPath + 'index2word.pickle', 'rb'))
-        return input_frames_train, captions_train, word_dict, word2Index, index2Word
+        
+        captions_train_dict = {}
+        for vid_cap in captions_train:
+            vid, cap = vid_cap
+            captions_train_dict[vid] = cap
+        
+        return input_frames_train, captions_train_dict, word_dict, word2Index, index2Word
     else:
         captions_test = pickle.load(open(dataPath+"id_captionInd_test.pickle", "rb"))
         # input_frames_test = np.load(dataPath + 'Xtest_allCap_15frames.npy')
@@ -272,17 +278,20 @@ def train_test_split_save(data, train_test_ratio=0.8):
         
     for tr_id in train_indice:
         train_frames[tr_id] = frames[tr_id]
-        for tu in captions:
-            vid, cap = tu
-            if vid == tr_id:
-                train_captions.append(tu)
+        train_captions.append(captions[tr_id])
+        
+        #for tu in captions:
+        #    vid, cap = tu
+        #    if vid == tr_id:
+        #        train_captions.append(tu)
+                
     for te_id in test_indice:
         test_frames[te_id] = frames[te_id]
-        for tu in captions:
-            vid, cap = tu
-            if vid == te_id:
-                test_captions.append(tu)
-
+        test_captions.append(captions[te_id])
+        #for tu in captions:
+        #    vid, cap = tu
+        #    if vid == te_id:
+        #        test_captions.append(tu)
     train_data = (train_frames, train_captions)
     test_data = (test_frames, test_captions)
 

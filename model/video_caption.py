@@ -467,9 +467,9 @@ class sequence_2_sequence_LSTM(Model):
                 def f2(): return input_caption[:, i, :]
                 
                 if self.mode == 'train':
-                    prev_vec = f1()
-                else:
                     prev_vec = f2()
+                else:
+                    prev_vec = f1()
 
                 prev_vec = tf.reshape(prev_vec, [batch_size, word_vector_size])
                 
@@ -493,6 +493,15 @@ class sequence_2_sequence_LSTM(Model):
                     # batch loss
                     batch_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels = targets, logits = logits))
                     losses += batch_loss
+                    
+                    # inference to get max score len
+                    scores = logits
+                    
+                    # max score word index 
+                    prev_ind = tf.argmax(scores, axis = 1)
+                    words.append(prev_ind)
+                    prev_vec = tf.nn.embedding_lookup(embedding, prev_ind)
+
                 
                 else:
 

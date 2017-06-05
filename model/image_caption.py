@@ -187,14 +187,14 @@ class image_caption_LSTM(Model):
     def add_prediction_op(self):
         """ LSTM encoder and decoder layers
         """
-        with tf.variable_scope("LSTM_seq2seq"):
+        with tf.variable_scope("LSTM_caption"):
             encoder_output, encoder_state = self.encoder()
 
             caption_embeddings = tf.nn.embedding_lookup(self.embedding, self.caption_placeholder)
 
             word_ind, batch_loss = self.decoder(encoder_outputs=encoder_output, encoder_out_state = encoder_state, input_caption=caption_embeddings, 
                 true_cap = self.caption_placeholder)
-            
+            print(word_ind)
             self.word_ind = word_ind
             return batch_loss
 
@@ -236,6 +236,7 @@ class image_caption_LSTM(Model):
                                      is_training=False)
         loss, predict_index = sess.run([self.loss, self.word_ind], feed_dict=feed)
         self.test_pred = predict_index
+        
         return loss
 
     def predict_on_batch(self, sess, input_frames, batch_captions ):
@@ -244,7 +245,6 @@ class image_caption_LSTM(Model):
             self.caption_placeholder: batch_captions 
         }
         predict_index = sess.run([self.word_ind], feed_dict=feed)
-        print(predict_index)
         return predict_index
 
     def test(self, sess, valid_data):
@@ -265,6 +265,7 @@ class image_caption_LSTM(Model):
         """
         The controller for each epoch training.
         This function will call training_on_batch for training and test for checking validation loss
+        train_data = ( frames( dict(vid:) ), captions( tuple(vid, captionIndex) ) )
         """
         train_losses = []
         input_frames, captions = train_data
@@ -335,7 +336,7 @@ class image_caption_LSTM(Model):
                 list_video_index.append(key)
                 batch_frames.append(frames_dict[key])
                 batch_captions.append(captions_dict[key])
-                
+               
             predict_index = self.predict_on_batch(sess, batch_frames, batch_captions )
             
             for pred in predict_index:
@@ -392,7 +393,6 @@ class image_caption_LSTM(Model):
         max_len=self.max_sentence_length
         
         inp_shape = tf.shape(encoder_outputs)
-        print(inp_shape)
         batch_size, input_len = inp_shape[0], inp_shape[1]
         
         if self.mode == 'train':
@@ -443,6 +443,13 @@ class image_caption_LSTM(Model):
                     # batch loss
                     batch_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels = targets, logits = logits))
                     losses += batch_loss
+                    
+                  
+                    scores = logits
+                    # max score word index 
+                    prev_ind = tf.argmax(scores, axis = 1)
+                    words.append(prev_ind)
+                    prev_vec = tf.nn.embedding_lookup(embedding, prev_ind)
                 
                 else:
 
