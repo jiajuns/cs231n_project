@@ -214,7 +214,9 @@ def train_test_split(data, train_test_ratio=0.8):
     '''
     frames, captions = data
     num_samples = len(frames)
+    print(num_samples)
     num_train = int(num_samples * train_test_ratio)
+    print(num_train)
     
     vid = np.array(list(frames.keys()))
     np.random.shuffle(vid)

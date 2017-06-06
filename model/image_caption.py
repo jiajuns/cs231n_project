@@ -158,7 +158,7 @@ class image_caption_LSTM(Model):
         self.train_embedding = False
         self.best_val = float('inf')
         self.mode = mode
-
+        self.save_model_file = save_model_file
         # ==== set up placeholder tokens ========
         self.frames_placeholder = tf.placeholder(tf.float32, shape=(None, self.num_frames, self.input_size))
         self.caption_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_sentence_length))
@@ -194,7 +194,6 @@ class image_caption_LSTM(Model):
 
             word_ind, batch_loss = self.decoder(encoder_outputs=encoder_output, encoder_out_state = encoder_state, input_caption=caption_embeddings, 
                 true_cap = self.caption_placeholder)
-            print(word_ind)
             self.word_ind = word_ind
             return batch_loss
 
@@ -219,6 +218,7 @@ class image_caption_LSTM(Model):
         Training model per batch using self.updates
         return loss for that batch and prediction
         """
+        self.mode = 'train'
         feed = self.create_feed_dict(input_frames=input_frames,
                                      input_caption=input_caption,
                                      is_training=True)
@@ -231,6 +231,7 @@ class image_caption_LSTM(Model):
         Test model and make prediction
         return loss for that batch and prediction
         """
+        self.mode = 'test'
         feed = self.create_feed_dict(input_frames=input_frames,
                                      input_caption=input_caption,
                                      is_training=False)
@@ -239,11 +240,11 @@ class image_caption_LSTM(Model):
         
         return loss
 
-    def predict_on_batch(self, sess, input_frames, batch_captions ):
-        feed = {
-            self.frames_placeholder: input_frames,
-            self.caption_placeholder: batch_captions 
-        }
+    def predict_on_batch(self, sess, batch_frames, batch_captions ):
+        feed = self.create_feed_dict(input_frames=batch_frames,
+                                     input_caption=batch_captions,
+                                     is_training=False)
+        
         predict_index = sess.run([self.word_ind], feed_dict=feed)
         return predict_index
 
@@ -283,6 +284,7 @@ class image_caption_LSTM(Model):
         if verbose: plot_loss(train_losses)
 
         avg_train_loss = np.mean(train_losses)
+        
         dev_loss = self.test(sess, valid_data)
         return dev_loss, avg_train_loss
 
@@ -290,25 +292,30 @@ class image_caption_LSTM(Model):
         '''
         train mode
         '''
+        self.mode = 'train'
+        
         val_losses = []
         train_losses = []
         train, validation = train_test_split(train_data, train_test_ratio=0.8)
         prog = Progbar(target=self.n_epochs)
         for i, epoch in enumerate(range(self.n_epochs)):
             dev_loss, avg_train_loss = self.run_epoch(sess, train, validation, verbose)
+            
+            if dev_loss < self.best_val:
+                saver = tf.train.Saver()
+                save_path = saver.save(sess, os.getcwd() + "/model/" + self.save_model_file + ".ckpt")
+                self.best_val = dev_loss
+                
             if verbose:
                 # print epoch results
                 prog.update(i + 1, exact = [("train loss", avg_train_loss), ("dev loss", dev_loss)])
-                if dev_loss < self.best_val:
-                    self.best_val = dev_loss
+                if dev_loss <= self.best_val:
                     print(" ")
                     print('Validation loss improved, Save Model!')
                 else:
                     print(" ")
                     print("Validation loss doesn't improve")
-            if dev_loss < self.best_val:
-                saver = tf.train.Saver()
-                save_path = saver.save(sess, os.getcwd() + "/model/" + save_model_file + ".ckpt")
+            
             val_losses.append(dev_loss)
             train_losses.append(avg_train_loss)
         return val_losses, train_losses, self.train_pred, self.test_pred, self.train_id, self.val_id
@@ -321,6 +328,7 @@ class image_caption_LSTM(Model):
         list_video_index: (list), [video_id, ...]
         list_predict_index: (list), [[word_index, word_index...],...]
         """
+        self.mode = 'test'
         list_predict_index = []
         list_video_index = []
         
@@ -328,7 +336,6 @@ class image_caption_LSTM(Model):
         num_inputs = len(key_sorted)   
            
         for batch_start in tqdm(np.arange(0, num_inputs, self.batch_size)):
-            
             keys = key_sorted[batch_start:batch_start+self.batch_size]
             batch_frames = []
             batch_captions = []
@@ -388,9 +395,9 @@ class image_caption_LSTM(Model):
 
         embedding = self.embedding
         word_vector_size = self.word_vector_size
-        voc_size=self.voc_size
-        hidden_size=self.hidden_size
-        max_len=self.max_sentence_length
+        voc_size = self.voc_size
+        hidden_size = self.hidden_size
+        max_len = self.max_sentence_length
         
         inp_shape = tf.shape(encoder_outputs)
         batch_size, input_len = inp_shape[0], inp_shape[1]
@@ -401,7 +408,6 @@ class image_caption_LSTM(Model):
             dropout = 1
 
         with tf.variable_scope('decoder') as scope:
-            
             #lstm_de_cell = tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.LSTMCell(hidden_size), output_keep_prob=dropout)
             lstm_de_cell = tf.contrib.rnn.LayerNormBasicLSTMCell(hidden_size, dropout_keep_prob=dropout)
             outputs = []
