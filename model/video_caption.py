@@ -168,7 +168,7 @@ class sequence_2_sequence_LSTM(Model):
 
         feed = {
             self.frames_placeholder: input_frames,
-            self.caption_placeholder: input_caption
+            self.caption_placeholder: input_caption,
             self.mode: is_training
         }
 
@@ -237,14 +237,15 @@ class sequence_2_sequence_LSTM(Model):
         """
         feed = self.create_feed_dict(input_frames=input_frames,
                                      input_caption=input_caption,
-                                     is_training=0)
+                                     is_training=1)
         loss, test_index = sess.run([self.loss, self.word_ind], feed_dict=feed)
         self.test_pred = test_index
         return loss
 
-    def predict_on_batch(self, sess, input_frames):
+    def predict_on_batch(self, sess, input_frames, input_captions):
         feed = {
             self.frames_placeholder: input_frames,
+            self.caption_placeholder: input_captions,
             self.mode: 0
         }
         predict_index = sess.run([self.word_ind], feed_dict=feed)[0]
@@ -315,7 +316,7 @@ class sequence_2_sequence_LSTM(Model):
             train_losses.append(avg_train_loss)
         return val_losses, train_losses, self.train_pred, self.test_pred, self.train_id, self.val_id
 
-    def predict(self, sess, input_frames_dict):
+    def predict(self, sess, input_frames_dict, captions_dict):
         """
         Input Args:
         input_frames: (dictionary), {videoId: frames}
@@ -326,17 +327,33 @@ class sequence_2_sequence_LSTM(Model):
         list_predict_index = []
         list_video_index = []
         num_inputs = len(input_frames)
-
-        input_frames = []
-        for video_id, frames in input_frames_dict.items():
-            list_video_index.append(video_id)
-            input_frames.append(frames)
-
+        key_sorted = sorted(captions_dict.keys())
+        num_inputs = len(key_sorted)   
+           
         for batch_start in tqdm(np.arange(0, num_inputs, self.batch_size)):
-            batch_frames = input_frames[batch_start:batch_start+self.batch_size]
-            predict_index = self.predict_on_batch(sess, batch_frames)
+            keys = key_sorted[batch_start:batch_start+self.batch_size]
+            batch_frames = []
+            batch_captions = []
+            for key in keys:
+                list_video_index.append(key)
+                batch_frames.append(frames_dict[key])
+                batch_captions.append(captions_dict[key])
+               
+            predict_index = self.predict_on_batch(sess, batch_frames, batch_captions )
+            
             for pred in predict_index:
                 list_predict_index.append(pred)
+        
+        # input_frames = []
+        # for video_id, frames in input_frames_dict.items():
+            #list_video_index.append(video_id)
+            #input_frames.append(frames)
+
+        # for batch_start in tqdm(np.arange(0, num_inputs, self.batch_size)):
+            # batch_frames = input_frames[batch_start:batch_start+self.batch_size]
+            # predict_index = self.predict_on_batch(sess, batch_frames)
+            # for pred in predict_index:
+                # list_predict_index.append(pred)
 
         return list_video_index, list_predict_index
 
@@ -397,11 +414,12 @@ class sequence_2_sequence_LSTM(Model):
         hidden_size=self.hidden_size
         max_len=self.max_sentence_length
         
-        if self.mode == 'train':
-            dropout = 0.7
-        else:
-            dropout = 1
-
+        def d1():
+            return tf.constant(0.7, tf.float32)
+        def d2():
+            return tf.constant(1, tf.float32)
+        dropout = tf.cond(self.mode > 0, lambda: d1(), lambda: d2())
+        
         with tf.variable_scope('decoder') as scope:
             
             #lstm_de_cell = tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.LSTMCell(hidden_size), output_keep_prob=dropout)
@@ -430,27 +448,26 @@ class sequence_2_sequence_LSTM(Model):
             prev_ind = None
             words = []
             losses = tf.constant(0, dtype = tf.float32)
+            
             # decoder output words
             for i in range(max_len):
 
                 scope.reuse_variables()
                 
                 mode = tf.cast(self.mode, tf.int32)
-                prev_vec = tf.cond(mode >= 1, lambda: f1(), \
-                    lambda: f2())
-
+                
+                # <START>
+                if i == 0: prev_vec = tf.ones([tf.shape(input_caption)[0], word_vector_size], tf.float32)
+                    
                 # train mode, input ground-truth 
                 def f1():
-                    return prev_vec = input_captions[:, i, :]
+                    return input_caption[:, i, :]
 
                 # test mode, input previous word vector
                 def f2():
                     return prev_vec
 
                 prev_vec = tf.cond(self.mode > 0, lambda: f1(), lambda: f2())
-
-                # <START>
-                if i == 0: prev_vec = tf.ones([tf.shape(input_caption)[0], word_vector_size], tf.float32)
                 
                 prev_vec = tf.reshape(prev_vec, [batch_size, word_vector_size])
                 
@@ -481,7 +498,7 @@ class sequence_2_sequence_LSTM(Model):
                     scores = tf.nn.softmax(logits)
                     return scores
                 
-                scores = tf.cond(self.mode > 0: lambda: f3(logits), lambda: f4(logits))
+                scores = tf.cond(self.mode > 0, lambda: f3(logits), lambda: f4(logits))
                 
                 # max score word index 
                 prev_ind = tf.argmax(scores, axis = 1)

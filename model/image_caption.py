@@ -118,7 +118,7 @@ class Model(object):
 class image_caption_LSTM(Model):
 
     def __init__(self, embeddings, flags, batch_size=64, hidden_size=100,
-        voc_size = 6169, n_epochs = 50, lr = 1e-3, reg = 1e-4, mode = 'train', save_model_file = 'bestModel'):
+        voc_size = 6169, n_epochs = 50, lr = 1e-3, reg = 1e-4, save_model_file = 'bestModel'):
         '''
         Input Args:
 
@@ -157,17 +157,19 @@ class image_caption_LSTM(Model):
         self.reg = reg
         self.train_embedding = False
         self.best_val = float('inf')
-        self.mode = mode
+        
         self.save_model_file = save_model_file
         # ==== set up placeholder tokens ========
         self.frames_placeholder = tf.placeholder(tf.float32, shape=(None, self.num_frames, self.input_size))
         self.caption_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_sentence_length))
+        self.mode = tf.placeholder(tf.int32, shape = [])
 
-    def create_feed_dict(self, input_frames, input_caption, is_training=True):
+    def create_feed_dict(self, input_frames, input_caption, is_training=1):
 
         feed = {
             self.frames_placeholder: input_frames,
-            self.caption_placeholder: input_caption
+            self.caption_placeholder: input_caption,
+            self.mode: is_training
         }
 
         return feed
@@ -206,8 +208,8 @@ class image_caption_LSTM(Model):
         # learning rate decay
         # https://www.tensorflow.org/versions/r0.11/api_docs/python/train/decaying_the_learning_rate
         starter_lr = self.learning_rate
-        lr = tf.train.exponential_decay(starter_lr, global_step = 700*self.n_epochs,
-                                            decay_steps = 300, decay_rate = 0.9, staircase=True)
+        lr = tf.train.exponential_decay(starter_lr, global_step = 700,
+                                            decay_steps = 300, decay_rate = 0.99, staircase=True)
         #optimizer = tf.train.AdamOptimizer(lr)
 
         optimizer = tf.train.RMSPropOptimizer(learning_rate = lr, decay = 0.95, momentum = 0.9)
@@ -218,10 +220,9 @@ class image_caption_LSTM(Model):
         Training model per batch using self.updates
         return loss for that batch and prediction
         """
-        self.mode = 'train'
         feed = self.create_feed_dict(input_frames=input_frames,
                                      input_caption=input_caption,
-                                     is_training=True)
+                                     is_training=1)
         loss, _, predict_index = sess.run([self.loss, self.updates, self.word_ind], feed_dict=feed)
         self.train_pred = predict_index
         return loss
@@ -231,10 +232,9 @@ class image_caption_LSTM(Model):
         Test model and make prediction
         return loss for that batch and prediction
         """
-        self.mode = 'test'
         feed = self.create_feed_dict(input_frames=input_frames,
                                      input_caption=input_caption,
-                                     is_training=False)
+                                     is_training=0)
         loss, predict_index = sess.run([self.loss, self.word_ind], feed_dict=feed)
         self.test_pred = predict_index
         
@@ -243,7 +243,7 @@ class image_caption_LSTM(Model):
     def predict_on_batch(self, sess, batch_frames, batch_captions ):
         feed = self.create_feed_dict(input_frames=batch_frames,
                                      input_caption=batch_captions,
-                                     is_training=False)
+                                     is_training=0)
         
         predict_index = sess.run([self.word_ind], feed_dict=feed)
         return predict_index
@@ -292,7 +292,6 @@ class image_caption_LSTM(Model):
         '''
         train mode
         '''
-        self.mode = 'train'
         
         val_losses = []
         train_losses = []
@@ -328,7 +327,6 @@ class image_caption_LSTM(Model):
         list_video_index: (list), [video_id, ...]
         list_predict_index: (list), [[word_index, word_index...],...]
         """
-        self.mode = 'test'
         list_predict_index = []
         list_video_index = []
         
@@ -367,10 +365,7 @@ class image_caption_LSTM(Model):
         hidden_size=self.hidden_size
         max_len = self.max_sentence_length
 
-        if self.mode == 'train':
-            dropout = 0.7
-        else:
-            dropout = 1
+        dropout = tf.cond(self.mode > 0, lambda: tf.constant(0.8, tf.float32), lambda: tf.constant(1, tf.float32))
             
         with tf.variable_scope('encoder') as scope:
             
@@ -402,10 +397,8 @@ class image_caption_LSTM(Model):
         inp_shape = tf.shape(encoder_outputs)
         batch_size, input_len = inp_shape[0], inp_shape[1]
         
-        if self.mode == 'train':
-            dropout = 0.7
-        else:
-            dropout = 1
+        
+        dropout = tf.cond(self.mode > 0, lambda: tf.constant(0.8, tf.float32), lambda: tf.constant(1, tf.float32))
 
         with tf.variable_scope('decoder') as scope:
             #lstm_de_cell = tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.LSTMCell(hidden_size), output_keep_prob=dropout)
@@ -415,7 +408,8 @@ class image_caption_LSTM(Model):
            
             # initial state
             state = encoder_out_state
-            
+            W = tf.Variable(tf.random_normal((hidden_size, voc_size)) / tf.sqrt(tf.cast(hidden_size, tf.float32)))
+            b = tf.Variable(tf.zeros(voc_size))
             prev_ind = None
             words = []
             losses = tf.constant(0, dtype = tf.float32)
@@ -427,50 +421,50 @@ class image_caption_LSTM(Model):
                 # <START>
                 if i == 0: prev_vec = tf.ones([tf.shape(input_caption)[0], word_vector_size], tf.float32) 
                 
-                def f1(): return prev_vec
-                def f2(): return input_caption[:, i, :]
+                # def f1(prev_vec): return prev_vec
+                # def f2(): return input_caption[:, i, :]
                 
-                if self.mode == 'train':
-                    prev_vec = f2()
-                else:
-                    prev_vec = f1()
+                # prev_vec = tf.cond(self.mode > 0, lambda: f2(), lambda: f1(prev_vec))
 
                 prev_vec = tf.reshape(prev_vec, [batch_size, word_vector_size])
                 
                 output_vector, state = lstm_de_cell(prev_vec, state)
                 
                 # scores
-                regularizer = tf.contrib.layers.l2_regularizer(scale = 1e-5)
-                logits = tf.layers.dense(output_vector, units = voc_size, name = 'hidden_to_scores', kernel_regularizer = regularizer)
-
-                if self.mode == 'train':
+                # regularizer = tf.contrib.layers.l2_regularizer(scale = 1e-5)
+                # logits = tf.layers.dense(output_vector, units = voc_size, name = 'hidden_to_scores', kernel_regularizer = regularizer)
+                logits = tf.matmul(output_vector, W) + b
+                def f3(losses):
                     targets = tf.reshape(true_cap[:, i], [-1])
 
                     # batch loss
                     batch_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels = targets, logits = logits))
                     losses += batch_loss
-                    
-                  
-                    scores = logits
-                    # max score word index 
-                    prev_ind = tf.argmax(scores, axis = 1)
-                    words.append(prev_ind)
-                    prev_vec = tf.nn.embedding_lookup(embedding, prev_ind)
-                
-                else:
 
+                    scores = logits
+                    return losses, scores
+               
+                def f4(losses):
+                    targets = tf.reshape(true_cap[:, i], [-1])
+
+                    # batch loss
+                    batch_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels = targets, logits = logits))
+                    losses += batch_loss
                     # inference to get max score len
                     scores = tf.nn.softmax(logits)
-                    
-                    # max score word index 
-                    prev_ind = tf.argmax(scores, axis = 1)
-                    words.append(prev_ind)
-                    prev_vec = tf.nn.embedding_lookup(embedding, prev_ind)
+                    return losses, scores
+               
+                losses, scores = tf.cond(self.mode > 0, lambda: f3(losses), lambda: f4(losses))
+                # max score word index 
+                prev_ind = tf.argmax(scores, axis = 1)
+                words.append(prev_ind)
+                prev_vec = tf.nn.embedding_lookup(embedding, prev_ind)
 
             # convert to tensor
             words = tf.stack(words)
             words = tf.transpose(words)
-            return words, losses / tf.cast(max_len, tf.float32)
+            losses = losses / tf.cast(max_len, tf.float32) + self.reg * tf.reduce_sum(W * W)
+            return words, losses
 
 def plot_loss(train_losses):
     plt.plot(range(len(train_losses)), train_losses, 'b-')
