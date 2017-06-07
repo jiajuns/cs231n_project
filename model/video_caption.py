@@ -118,7 +118,7 @@ class Model(object):
 class sequence_2_sequence_LSTM(Model):
 
     def __init__(self, embeddings, flags, batch_size=64, hidden_size=100,
-        voc_size = 6169, n_epochs = 50, lr = 1e-3, reg = 1e-4, mode = 'train', save_model_file = 'bestModel'):
+        voc_size = 6169, n_epochs = 50, lr = 1e-3, reg = 1e-4, mode = 1, save_model_file = 'bestModel'):
         '''
         Input Args:
 
@@ -162,12 +162,14 @@ class sequence_2_sequence_LSTM(Model):
         # ==== set up placeholder tokens ========
         self.frames_placeholder = tf.placeholder(tf.float32, shape=(None, self.num_frames, self.input_size))
         self.caption_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_sentence_length))
+        self.mode = tf.placeholder(tf.int32, shape = [])
 
-    def create_feed_dict(self, input_frames, input_caption, is_training=True):
+    def create_feed_dict(self, input_frames, input_caption, is_training = 1):
 
         feed = {
             self.frames_placeholder: input_frames,
             self.caption_placeholder: input_caption
+            self.mode: is_training
         }
 
         return feed
@@ -203,34 +205,6 @@ class sequence_2_sequence_LSTM(Model):
 
             loss_val = batch_loss
 
-            # captions = self.caption_placeholder
-            # captions = tf.cast(captions, tf.float32)
-            # unk = tf.constant(266, dtype=tf.float32) # <unk> index mask <unk>
-            # mask = tf.not_equal(captions, unk)
-            # mask = tf.cast(mask, tf.float32)
-            
-            # output_shape = tf.shape(outputs)
-            # N, T, V = output_shape[0], output_shape[1], output_shape[2]
-            # outputs_flat = tf.reshape(outputs, [N*T, V])
-            # captions_flat = tf.cast(tf.reshape(captions, [N*T,]), tf.int32)
-            # mask_flat = tf.reshape(mask, [N*T,])
-            
-            # N_float = tf.cast(N, tf.float32)
-            # outputs_flat = tf.cast(outputs_flat, tf.float32)
-            # # probs = tf.exp(outputs_flat - tf.reduce_max(outputs_flat, axis = 1, keep_dims = True))
-             
-            # # probs = probs / tf.reduce_sum(probs, axis = 1, keep_dims = True)
-            # # probs = tf.reshape(probs, [N*T, V])
-            # # correct_scores = tf.gather_nd(probs, tf.stack((tf.range(N*T), captions_flat), axis=1))
-     
-            # # loss_val = -tf.reduce_sum(tf.log(correct_scores)) / N_float
-        
-        
-            # logits = outputs_flat
-            # captions = tf.cast(captions_flat, tf.int32)
-            # labels = tf.one_hot(captions, self.voc_size)
-            # loss_val = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits = outputs, labels = labels))
-            
         return loss_val
 
     def add_training_op(self, loss_val):
@@ -251,9 +225,9 @@ class sequence_2_sequence_LSTM(Model):
         """
         feed = self.create_feed_dict(input_frames=input_frames,
                                      input_caption=input_caption,
-                                     is_training=True)
-        loss, _, predict_index = sess.run([self.loss, self.updates, self.word_ind], feed_dict=feed)
-        self.train_pred = predict_index
+                                     is_training=1)
+        loss, _, train_index = sess.run([self.loss, self.updates, self.word_ind], feed_dict=feed)
+        self.train_pred = train_index
         return loss
 
     def test_on_batch(self, sess, input_frames, input_caption):
@@ -263,14 +237,15 @@ class sequence_2_sequence_LSTM(Model):
         """
         feed = self.create_feed_dict(input_frames=input_frames,
                                      input_caption=input_caption,
-                                     is_training=False)
-        loss, predict_index = sess.run([self.loss, self.word_ind], feed_dict=feed)
-        self.test_pred = predict_index
+                                     is_training=0)
+        loss, test_index = sess.run([self.loss, self.word_ind], feed_dict=feed)
+        self.test_pred = test_index
         return loss
 
     def predict_on_batch(self, sess, input_frames):
         feed = {
             self.frames_placeholder: input_frames,
+            self.mode: 0
         }
         predict_index = sess.run([self.word_ind], feed_dict=feed)[0]
         return predict_index
@@ -459,18 +434,24 @@ class sequence_2_sequence_LSTM(Model):
             for i in range(max_len):
 
                 scope.reuse_variables()
+                
+                mode = tf.cast(self.mode, tf.int32)
+                prev_vec = tf.cond(mode >= 1, lambda: f1(), \
+                    lambda: f2())
+
+                # train mode, input ground-truth 
+                def f1():
+                    return prev_vec = input_captions[:, i, :]
+
+                # test mode, input previous word vector
+                def f2():
+                    return prev_vec
+
+                prev_vec = tf.cond(self.mode > 0, lambda: f1(), lambda: f2())
 
                 # <START>
-                if i == 0: prev_vec = tf.ones([tf.shape(input_caption)[0], word_vector_size], tf.float32) 
+                if i == 0: prev_vec = tf.ones([tf.shape(input_caption)[0], word_vector_size], tf.float32)
                 
-                def f1(): return prev_vec
-                def f2(): return input_caption[:, i, :]
-                
-                if self.mode == 'train':
-                    prev_vec = f2()
-                else:
-                    prev_vec = f1()
-
                 prev_vec = tf.reshape(prev_vec, [batch_size, word_vector_size])
                 
                 # concatnate encoder hidden output and ground-truth (training) / previous word (test) vector
@@ -479,40 +460,35 @@ class sequence_2_sequence_LSTM(Model):
                     enc_out = tf.reshape(enc_out, [batch_size, hidden_size])
                 except:
                     raise Exception("Decoder hidden size doesn't match with encoder hidden size!")
-                    
+                
                 dec_inp = tf.concat([enc_out, prev_vec], axis = 1)
                 output_vector, state = lstm_de_cell(dec_inp, state)
-                
+            
                 # scores
                 regularizer = tf.contrib.layers.l2_regularizer(scale = 1e-5)
                 logits = tf.layers.dense(output_vector, units = voc_size, name = 'hidden_to_scores', kernel_regularizer = regularizer)
 
-                if self.mode == 'train':
-                    targets = tf.reshape(true_cap[:, i], [-1])
+                targets = tf.reshape(true_cap[:, i], [-1])
 
-                    # batch loss
-                    batch_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels = targets, logits = logits))
-                    losses += batch_loss
-                    
-                    # inference to get max score len
-                    scores = logits
-                    
-                    # max score word index 
-                    prev_ind = tf.argmax(scores, axis = 1)
-                    words.append(prev_ind)
-                    prev_vec = tf.nn.embedding_lookup(embedding, prev_ind)
-
+                # batch loss
+                batch_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels = targets, logits = logits))
+                losses += batch_loss
                 
-                else:
+                def f3(logits):
+                    return logits
 
-                    # inference to get max score len
+                def f4(logits):
                     scores = tf.nn.softmax(logits)
-                    
-                    # max score word index 
-                    prev_ind = tf.argmax(scores, axis = 1)
-                    words.append(prev_ind)
-                    prev_vec = tf.nn.embedding_lookup(embedding, prev_ind)
+                    return scores
+                
+                scores = tf.cond(self.mode > 0: lambda: f3(logits), lambda: f4(logits))
+                
+                # max score word index 
+                prev_ind = tf.argmax(scores, axis = 1)
+                words.append(prev_ind)
+                prev_vec = tf.nn.embedding_lookup(embedding, prev_ind)
 
+            
             # convert to tensor
             words = tf.stack(words)
             words = tf.transpose(words)
