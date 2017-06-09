@@ -2,9 +2,14 @@ from keras.layers import Activation, Dense, Flatten, Dropout
 from keras.optimizers import Adam, SGD
 
 from keras.layers.convolutional import (Conv2D, MaxPooling2D, MaxPooling3D, Conv3D)
+
 from keras.layers.normalization import (BatchNormalization)
 from keras.models import Sequential, load_model, model_from_json
 from keras import regularizers
+
+from keras.layers.core import Dense, Dropout, Flatten
+from keras.models import Sequential
+from kerasmodel.kerasmodelzoo.utils.data import download_file, load_np_data
 
 import sys
 import os
@@ -14,6 +19,8 @@ import glob
 from PIL import Image
 from datetime import datetime
 import matplotlib.pyplot as plt
+
+_C3D_WEIGHTS_URL = 'https://www.dropbox.com/s/ypiwalgtlrtnw8b/c3d-sports1M_weights.h5?dl=1'
 
 class models():
     
@@ -93,13 +100,73 @@ class models():
         plt.legend(['train', 'validation'], loc='upper right')
         plt.show()
        
-   
-        
-    
-    
-    
-    
-    
+    '''
+    def c3d(weights=True, summary=True):
+        c3d_model = Sequential()
+        # 1st layer group
+        c3d_model.add(Conv3D(64, 3, 3, 3, activation='relu',
+                                border_mode='same', name='conv1',
+                                subsample=(1, 1, 1),
+                                input_shape=(3, 16, 112, 112)))
+        c3d_model.add(MaxPooling3D(pool_size=(1, 2, 2), strides=(1, 2, 2),
+                               border_mode='valid', name='pool1'))
+
+        # 2nd layer group
+        c3d_model.add(Conv3D(128, 3, 3, 3, activation='relu',
+                                border_mode='same', name='conv2',
+                                subsample=(1, 1, 1)))
+        c3d_model.add(MaxPooling3D(pool_size=(2, 2, 2), strides=(2, 2, 2),
+                               border_mode='valid', name='pool2'))
+
+        # 3rd layer group
+        c3d_model.add(Conv3D(256, 3, 3, 3, activation='relu',
+                                border_mode='same', name='conv3a',
+                                subsample=(1, 1, 1)))
+        c3d_model.add(Conv3D(256, 3, 3, 3, activation='relu',
+                                border_mode='same', name='conv3b',
+                                subsample=(1, 1, 1)))
+        c3d_model.add(MaxPooling3D(pool_size=(2, 2, 2), strides=(2, 2, 2),
+                               border_mode='valid', name='pool3'))
+
+        # 4th layer group
+        c3d_model.add(Conv3D(512, 3, 3, 3, activation='relu',
+                                border_mode='same', name='conv4a',
+                                subsample=(1, 1, 1)))
+        c3d_model.add(Conv3D(512, 3, 3, 3, activation='relu',
+                                border_mode='same', name='conv4b',
+                                subsample=(1, 1, 1)))
+        c3d_model.add(MaxPooling3D(pool_size=(2, 2, 2), strides=(2, 2, 2),
+                               border_mode='valid', name='pool4'))
+
+        # 5th layer group
+        c3d_model.add(Conv3D(512, 3, 3, 3, activation='relu',
+                                border_mode='same', name='conv5a',
+                                subsample=(1, 1, 1)))
+        c3d_model.add(Conv3D(512, 3, 3, 3, activation='relu',
+                                border_mode='same', name='conv5b',
+                                subsample=(1, 1, 1)))
+        c3d_model.add(ZeroPadding3D(padding=(0, 1, 1)))
+        c3d_model.add(MaxPooling3D(pool_size=(2, 2, 2), strides=(2, 2, 2),
+                               border_mode='valid', name='pool5'))
+        c3d_model.add(Flatten())
+
+        # FC layers group
+        c3d_model.add(Dense(4096, activation='relu', name='fc6'))
+        c3d_model.add(Dropout(.5))
+        c3d_model.add(Dense(4096, activation='relu', name='fc7'))
+        c3d_model.add(Dropout(.5))
+        c3d_model.add(Dense(487, activation='softmax', name='fc8'))
+
+        if weights:
+            filepath = download_file('c3d_weights.h5',
+                _C3D_WEIGHTS_URL)
+            c3d_model.load_weights(filepath)
+
+        if summary:
+            print(c3d_model.summary())
+
+        return c3d_model    
+    '''
     
     def c3d(self):
         
@@ -108,7 +175,7 @@ class models():
         model.add(BatchNormalization(input_shape= self.shape))
         
         # conv_1
-        conv_1 = Conv3D(32, (3,3,3), strides=(1,2,2))
+        conv_1 = Conv3D(64, (3,3,3), strides=(1,2,2))
         model.add(conv_1)
         print(conv_1.output_shape)
         model.add(BatchNormalization())
@@ -116,7 +183,7 @@ class models():
         model.add(MaxPooling3D(pool_size=(1, 2, 2), strides=(1, 2, 2)))
 
         # conv_2 
-        conv_2 = Conv3D(64, (3,3,3), padding='same')
+        conv_2 = Conv3D(128, (3,3,3), padding='same')
         model.add(conv_2)
         print(conv_2.output_shape)
         model.add(BatchNormalization())
@@ -124,14 +191,14 @@ class models():
         model.add(MaxPooling3D(pool_size=(2, 2, 2), strides=(1, 2, 2)))
 
         # conv_3
-        conv_3a = Conv3D(128, (3,3,3), padding='same')
+        conv_3a = Conv3D(256, (3,3,3), padding='same')
         model.add(conv_3a)
         print(conv_3a.output_shape)
         model.add(BatchNormalization())
         model.add(Activation('relu'))
         
         # conv_3
-        conv_3b = Conv3D(128, (3,3,3), padding='same')
+        conv_3b = Conv3D(256, (3,3,3), padding='same')
         model.add(conv_3b)
         print(conv_3b.output_shape)
         model.add(BatchNormalization())
@@ -139,14 +206,14 @@ class models():
         model.add(MaxPooling3D(pool_size=(2, 2, 2), strides=(2, 2, 2)))
         
         # conv_4
-        conv_4a = Conv3D(256, (3,3,3), padding='same')
+        conv_4a = Conv3D(512, (3,3,3), padding='same')
         model.add(conv_4a)
         print(conv_4a.output_shape)
         model.add(BatchNormalization())
         model.add(Activation('relu'))
         
-        # conv_3
-        conv_4b = Conv3D(256, (3,3,3), padding='same')
+        # conv_4
+        conv_4b = Conv3D(512, (3,3,3), padding='same')
         model.add(conv_4b)
         print(conv_4b.output_shape)
         model.add(BatchNormalization())
@@ -157,20 +224,21 @@ class models():
         
         model.add(Flatten())
         # d1
-        d1 = Dense(1024, kernel_regularizer=regularizers.l2(reg))
+        d1 = Dense(4096, kernel_regularizer=regularizers.l2(reg))
         model.add(d1)
         print (d1.output_shape)
-        model.add(Dropout(0.3))
+        model.add(Dropout(0.5))
         
-        # d2
-        d2 = Dense(512, kernel_regularizer=regularizers.l2(reg))
+        # d1
+        d2 = Dense(1024, kernel_regularizer=regularizers.l2(reg))
         model.add(d2)
         print (d2.output_shape)
-        model.add(Dropout(0.3))
+        model.add(Dropout(0.5))
         
-        # d3
+        # d2
         d3 = Dense(self.num_classes, activation='softmax', kernel_regularizer=regularizers.l2(reg))
         model.add(d3)
         print (d3.output_shape)
-        
+        print(model.summary())
         return model
+    

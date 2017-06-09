@@ -281,7 +281,8 @@ class image_caption_LSTM(Model):
             train_losses.append(train_loss)
 
             # plot batch iteration vs loss figure
-        if verbose: plot_loss(train_losses)
+            
+        # if verbose: plot_loss(train_losses)
 
         avg_train_loss = np.mean(train_losses)
         
@@ -300,17 +301,21 @@ class image_caption_LSTM(Model):
         for i, epoch in enumerate(range(self.n_epochs)):
             dev_loss, avg_train_loss = self.run_epoch(sess, train, validation, verbose)
             
+            saver = tf.train.Saver()
+            print('Save the lastest Model!')
+            save_path = saver.save(sess, os.getcwd() + "/model/lastestModel.ckpt")
+                        
             if dev_loss < self.best_val:
                 saver = tf.train.Saver()
+                print('Validation loss improved, Save Model!')
                 save_path = saver.save(sess, os.getcwd() + "/model/" + self.save_model_file + ".ckpt")
                 self.best_val = dev_loss
-                
+             
             if verbose:
                 # print epoch results
                 prog.update(i + 1, exact = [("train loss", avg_train_loss), ("dev loss", dev_loss)])
                 if dev_loss <= self.best_val:
                     print(" ")
-                    print('Validation loss improved, Save Model!')
                 else:
                     print(" ")
                     print("Validation loss doesn't improve")
@@ -415,7 +420,7 @@ class image_caption_LSTM(Model):
             losses = tf.constant(0, dtype = tf.float32)
             # decoder output words
             for i in range(max_len):
-
+                
                 if i >= 1: scope.reuse_variables()
 
                 # <START>

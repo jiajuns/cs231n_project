@@ -80,7 +80,6 @@ class ind_word_convertor():
         return word
 
 def build_word_to_index_dict(dataPath):
-    print('hihi')
     w2v = pickle.load(open(dataPath+"word2Vector.pickle", "rb"))
     w2v_keys_sorted = sorted(list(w2v.keys()))
     id_cap_dict = pickle.load(open(dataPath+"id_caption_dict_clean.pickle", "rb"))
@@ -218,7 +217,8 @@ def train_test_split(data, train_test_ratio=0.8):
     num_train = int(num_samples * train_test_ratio)
     print(num_train)
     
-    vid = np.array(list(frames.keys()))
+    vid = np.array(sorted(list(frames.keys())))
+    np.random.seed(1)
     np.random.shuffle(vid)
     
     train_indice = vid[:num_train]
@@ -267,7 +267,8 @@ def train_test_split_save(data, train_test_ratio=0.8):
     num_samples = len(frames)
     num_train = int(num_samples * train_test_ratio)
     
-    vid = np.array(list(frames.keys()))
+    vid = np.array(sorted(list(frames.keys())))
+    np.random.seed(1)
     np.random.shuffle(vid)
     
     train_indice = vid[:num_train]

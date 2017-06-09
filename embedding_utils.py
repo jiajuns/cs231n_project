@@ -57,7 +57,7 @@ def dataLoader(url, filename, path, text_dir):
         print('Already unzip {}'.format(filename))
 
 
-def dataMapping(caption_dir, glove_dir, save_path):
+def dataMapping(caption_dir, glove_dir, save_path, coco_path):
     '''
     caption_dir: (str) caption directory
     glove_dir: (str) glove directory
@@ -83,6 +83,9 @@ def dataMapping(caption_dir, glove_dir, save_path):
         #wordls = ' '.join(i for i in value).split(" ")
         wordls = value.split(" ")
         caption_words.extend(wordls)
+        
+    coco_words = list(np.load(open(coco_path, 'rb')))
+    caption_words = caption_words + coco_words
     caption_words = list(set(caption_words)) # the first is empty
     print('Unique word length: {}'.format(len(caption_words)))
 
@@ -209,6 +212,7 @@ if __name__ == '__main__':
     glove_dir = os.path.join(dataset_path, 'glove_dic.pickle')
     json_path = os.path.join(dataset_path, 'train_2017/videodatainfo_2017.json')
     caption_path = os.path.join(dataset_path, 'id_caption_dict_clean.pickle')
+    coco_path = os.path.join(dataset_path, 'CoCo_wordLs.npy')
 
     build_id_caption_dict(json_path, caption_path)
     dataLoader(glove_url, glove_filename, dataset_path, glove_text_dir)
