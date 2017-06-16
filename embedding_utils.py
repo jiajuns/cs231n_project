@@ -21,6 +21,7 @@ from datetime import datetime
 import pickle
 import matplotlib.pyplot as plt 
 import json 
+from util import *
 
 def dataLoader(url, filename, path, text_dir):
     '''
@@ -80,10 +81,11 @@ def dataMapping(caption_dir, glove_dir, save_path, coco_path):
 
     caption_words = []
     for key, value in id2caption.items():
-        #wordls = ' '.join(i for i in value).split(" ")
-        wordls = value.split(" ")
-        caption_words.extend(wordls)
-        
+        for caption in value:
+            #wordls = ' '.join(i for i in value).split(" ")
+            wordls = caption.split(" ")
+            caption_words.extend(wordls)
+    
     coco_words = list(np.load(open(coco_path, 'rb')))
     caption_words = caption_words + coco_words
     caption_words = list(set(caption_words)) # the first is empty
@@ -217,5 +219,9 @@ if __name__ == '__main__':
     build_id_caption_dict(json_path, caption_path)
     dataLoader(glove_url, glove_filename, dataset_path, glove_text_dir)
     build_glove_dict(glove_text_dir, dataset_path)
-    dataMapping(caption_dir, glove_dir, dataset_path)
-    plot_word_distribution(caption_dir) # optional 
+    dataMapping(caption_dir, glove_dir, dataset_path, coco_path)
+    
+    dataPath = dataset_path + '/'
+    build_word_to_index_dict(dataPath)
+    build_caption_data_dict(dataPath, maxLen=20)
+    #plot_word_distribution(caption_dir) # optional 

@@ -80,7 +80,7 @@ class ind_word_convertor():
         return word
 
 def build_word_to_index_dict(dataPath):
-    w2v = pickle.load(open(dataPath+"word2Vector.pickle", "rb"))
+    w2v = pickle.load(open( dataPath+"word2Vector.pickle", "rb"))
     w2v_keys_sorted = sorted(list(w2v.keys()))
     id_cap_dict = pickle.load(open(dataPath+"id_caption_dict_clean.pickle", "rb"))
 
@@ -115,7 +115,7 @@ def cpation_data(dataPath, id_Ls, maxLen = 20):
     caption_data = []
     for count, video_id in enumerate(id_Ls):
         captionLs = [id_cap_dict["video"+str(video_id)]]
-        for caption in captionLs:
+        for caption in captionLs[0]:
             caption_split = caption.split()
             if len(caption_split) >= maxLen-2:
                 caption_split = caption_split[0:maxLen-2]
@@ -159,7 +159,7 @@ def word_embedding_array(word_dict, dim, word2Index):
             word_embedding[word_index] = w_vector
     return word_embedding.astype(np.float32)
 
-def load_caption_data(sample_size, dataPath, train = True):
+def load_caption_data( dataPath, sample_size=None, train = True):
     '''
     Input Args:
     sample_size: (int) how many samples loaded to train
@@ -173,27 +173,52 @@ def load_caption_data(sample_size, dataPath, train = True):
     '''
     if train:
         captions_train = pickle.load(open(dataPath+"id_captionInd_train.pickle", "rb"))
-        # input_frames_train = np.load(dataPath + 'Xtrain_allCap_15frames.npy')
+        # input_frames_train = np.load(dataPath + 'Xtrain_allCap_15frames.npy')       
         input_frames_train = pickle.load(open(dataPath + 'input_frames_train.pickle', 'rb'))
-        # input_frames_train = input_frames_train.reshape((-1, 15, 4096))[:sample_size]
-        # input_frames_train = input_frames_train.reshape((sample_size, 15, 4096))
+            
         word_dict = pickle.load(open(dataPath + "word2Vector.pickle", "rb"))
         word2Index = pickle.load(open(dataPath + 'word2index.pickle', 'rb'))
         index2Word = pickle.load(open(dataPath + 'index2word.pickle', 'rb'))
         
+        np.random.seed(1)
+        np.random.shuffle(captions_train)
+        input_frames_train_dict = {}
         captions_train_dict = {}
-        for vid_cap in captions_train:
-            vid, cap = vid_cap
-            captions_train_dict[vid] = cap
+        videosId_train_dict = {}
+        for i in range(len(captions_train)):
+            
+            if sample_size and i>=sample_size: break
+                
+            vid_cap = captions_train[i]
+            vid, cap  = vid_cap
+            
+            captions_train_dict[i] = cap
+            input_frames_train_dict[i] = input_frames_train[vid]
+            videosId_train_dict[i] = vid
         
-        return input_frames_train, captions_train_dict, word_dict, word2Index, index2Word
+        return input_frames_train_dict, captions_train_dict, videosId_train_dict, word_dict, word2Index, index2Word
     else:
         captions_test = pickle.load(open(dataPath+"id_captionInd_test.pickle", "rb"))
-        # input_frames_test = np.load(dataPath + 'Xtest_allCap_15frames.npy')
+        # input_frames_test = np.load(dataPath + 'Xtest_allCap_15frames.npy')  
         input_frames_test = pickle.load(open(dataPath + 'input_frames_test.pickle', 'rb'))
-        # input_frames_test = input_frames_test.reshape((-1, 15, 4096))[:sample_size]
-        # input_frames_test = input_frames_test.reshape((sample_size, 15, 4096))
-        return input_frames_test, captions_test
+        
+        np.random.seed(1)
+        np.random.shuffle(captions_test)
+        input_frames_test_dict = {}
+        captions_test_dict = {}
+        videosId_test_dict = {}
+        
+        for i in range(len(captions_test)):
+            if sample_size and i>=sample_size: break
+                
+            vid_cap = captions_test[i]
+            vid, cap  = vid_cap
+            
+            captions_test_dict[i] = cap
+            input_frames_test_dict[i] = input_frames_test[vid]
+            videosId_test_dict[i] = vid     
+        
+        return input_frames_test_dict, captions_test_dict, videosId_test_dict
 
     
     

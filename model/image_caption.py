@@ -118,7 +118,8 @@ class Model(object):
 class image_caption_LSTM(Model):
 
     def __init__(self, embeddings, flags, batch_size=64, hidden_size=100,
-        voc_size = 6169, n_epochs = 50, lr = 1e-3, reg = 1e-4, save_model_file = 'bestModel'):
+        voc_size = 6169, n_epochs = 50, lr = 1e-3, reg = 1e-4, save_model_file = 'bestModel',
+                 save_model_file2 = 'lastestModel'):
         '''
         Input Args:
 
@@ -159,6 +160,7 @@ class image_caption_LSTM(Model):
         self.best_val = float('inf')
         
         self.save_model_file = save_model_file
+        self.save_model_file2 = save_model_file2
         # ==== set up placeholder tokens ========
         self.frames_placeholder = tf.placeholder(tf.float32, shape=(None, self.num_frames, self.input_size))
         self.caption_placeholder = tf.placeholder(tf.int32, shape=(None, self.max_sentence_length))
@@ -208,11 +210,12 @@ class image_caption_LSTM(Model):
         # learning rate decay
         # https://www.tensorflow.org/versions/r0.11/api_docs/python/train/decaying_the_learning_rate
         starter_lr = self.learning_rate
-        lr = tf.train.exponential_decay(starter_lr, global_step = 700,
-                                            decay_steps = 300, decay_rate = 0.99, staircase=True)
+        lr = tf.train.exponential_decay(starter_lr, global_step = 1000,
+                                            decay_steps = 200, decay_rate = 0.96, staircase=True)
         #optimizer = tf.train.AdamOptimizer(lr)
 
-        optimizer = tf.train.RMSPropOptimizer(learning_rate = lr, decay = 0.95, momentum = 0.9)
+        optimizer = tf.train.RMSPropOptimizer(learning_rate = lr, decay = 1, momentum = 0.9)
+        #optimizer = tf.train.RMSPropOptimizer(learning_rate = starter_lr, decay = 0.999, momentum = 0.9)
         self.updates = optimizer.minimize(loss_val)
 
     def train_on_batch(self, sess, input_frames, input_caption):
@@ -303,7 +306,7 @@ class image_caption_LSTM(Model):
             
             saver = tf.train.Saver()
             print('Save the lastest Model!')
-            save_path = saver.save(sess, os.getcwd() + "/model/lastestModel.ckpt")
+            save_path = saver.save(sess, os.getcwd() + "/model/" + self.save_model_file2 + ".ckpt")
                         
             if dev_loss < self.best_val:
                 saver = tf.train.Saver()
@@ -349,8 +352,8 @@ class image_caption_LSTM(Model):
                
             predict_index = self.predict_on_batch(sess, batch_frames, batch_captions )
             
-            for pred in predict_index:
-                list_predict_index.append(pred)
+            for pred in list(predict_index):
+                list_predict_index.append(list(pred))
 
         return list_video_index, list_predict_index
 
@@ -426,10 +429,9 @@ class image_caption_LSTM(Model):
                 # <START>
                 if i == 0: prev_vec = tf.ones([tf.shape(input_caption)[0], word_vector_size], tf.float32) 
                 
-                # def f1(prev_vec): return prev_vec
-                # def f2(): return input_caption[:, i, :]
-                
-                # prev_vec = tf.cond(self.mode > 0, lambda: f2(), lambda: f1(prev_vec))
+                #def f1(prev_vec): return prev_vec
+                #def f2(): return input_caption[:, i, :]
+                #prev_vec = tf.cond(self.mode > 0, lambda: f2(), lambda: f1(prev_vec))
 
                 prev_vec = tf.reshape(prev_vec, [batch_size, word_vector_size])
                 
